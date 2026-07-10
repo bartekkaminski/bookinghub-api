@@ -88,6 +88,7 @@ public sealed class UserService : IUserService
         var memberships = await _members.GetByPersonIdAsync(person.Id, ct);
         var membershipInfos = memberships.Select(m => new AuthMembershipInfo
         {
+            MemberId         = m.Id,
             OrganizationId   = m.OrganizationId,
             OrganizationName = m.Organization?.Name ?? string.Empty,
             IsActive         = m.IsActive,
@@ -126,6 +127,7 @@ public sealed class UserService : IUserService
         var memberships = await _members.GetByPersonIdAsync(user.Person.Id, ct);
         var membershipInfos = memberships.Select(m => new AuthMembershipInfo
         {
+            MemberId         = m.Id,
             OrganizationId   = m.OrganizationId,
             OrganizationName = m.Organization?.Name ?? string.Empty,
             IsActive         = m.IsActive,

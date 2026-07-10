@@ -194,4 +194,25 @@ public sealed class EventEnrollmentRepository : BaseRepository<EventEnrollment>,
                       && en.Event.StartTime >= from
                       && en.Event.StartTime <= to)
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<EventEnrollment>> GetPendingRequestsForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
+        => await _dbSet
+            .AsNoTracking()
+            .Include(en => en.Event)
+            .Include(en => en.OrganizationMember)
+                .ThenInclude(m => m.Person)
+            .Where(en => en.Status == EventEnrollmentStatus.PendingApproval
+                      && en.Event.OrganizationId == organizationId)
+            .OrderBy(en => en.Event.StartTime)
+            .ThenBy(en => en.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<bool> HasPendingRequestAsync(Guid eventId, Guid organizationMemberId, CancellationToken cancellationToken = default)
+        => await _dbSet.AnyAsync(
+            en => en.EventId == eventId
+               && en.OrganizationMemberId == organizationMemberId
+               && en.Status == EventEnrollmentStatus.PendingApproval,
+            cancellationToken);
 }

@@ -64,6 +64,36 @@ public sealed class EnrollMemberRequest
     public Guid OrganizationMemberId { get; set; }
 }
 
+/// <summary>Żądanie złożenia wniosku o zapis przez samego uczestnika.</summary>
+public sealed class RequestEnrollmentRequest
+{
+    [StringLength(500)]
+    public string? Reason { get; set; }
+}
+
+/// <summary>Skrócone dane wniosku o zapis — do list oczekujących.</summary>
+public sealed class EnrollmentRequestSummaryResponse
+{
+    public Guid Id { get; set; }
+    public Guid EventId { get; set; }
+    public string EventTitle { get; set; } = string.Empty;
+    public DateTime EventStartTime { get; set; }
+    public Guid OrganizationMemberId { get; set; }
+    public string MemberDisplayName { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    public DateTime RequestedAt { get; set; }
+}
+
+/// <summary>Decyzja trenera/admina o wniosku o zapis.</summary>
+public sealed class ReviewEnrollmentRequestRequest
+{
+    [Required]
+    public bool Approved { get; set; }
+
+    [StringLength(500)]
+    public string? ReviewNote { get; set; }
+}
+
 /// <summary>Żądanie zapisu całego zespołu na zajęcia.</summary>
 public sealed class EnrollTeamRequest
 {

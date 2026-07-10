@@ -41,6 +41,17 @@ internal static class EnrollmentMappings
         CreatedAt = enrollment.CreatedAt,
     };
 
+    public static EnrollmentRequestSummaryResponse ToRequestSummary(this EventEnrollment enrollment) => new()
+    {
+        Id                   = enrollment.Id,
+        EventId              = enrollment.EventId,
+        EventTitle           = enrollment.Event?.Title ?? string.Empty,
+        EventStartTime       = enrollment.Event?.StartTime ?? DateTime.MinValue,
+        OrganizationMemberId = enrollment.OrganizationMemberId,
+        MemberDisplayName    = enrollment.OrganizationMember?.ResolveDisplayName() ?? string.Empty,
+        RequestedAt          = enrollment.CreatedAt,
+    };
+
     public static TeamEnrollmentSummaryResponse ToSummary(this EventTeamEnrollment enrollment) => new()
     {
         Id             = enrollment.Id,

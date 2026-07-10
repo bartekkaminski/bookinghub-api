@@ -44,6 +44,15 @@ public abstract class BaseRepository<T> : IBaseRepository<T> where T : BaseEntit
     }
 
     /// <inheritdoc/>
+    public virtual async Task<IReadOnlyList<T>> AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
+    {
+        var list = entities.ToList();
+        await _dbSet.AddRangeAsync(list, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return list;
+    }
+
+    /// <inheritdoc/>
     public virtual async Task<T> UpdateAsync(T entity, CancellationToken cancellationToken = default)
     {
         // FindAsync sprawdza change tracker, a jeśli nie ma — ładuje z DB z trackowaniem.

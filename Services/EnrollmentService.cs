@@ -241,4 +241,91 @@ public sealed class EnrollmentService : IEnrollmentService
             }
         }
     }
+
+    // ── Wnioski o zapis (PendingApproval) ─────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task<EnrollmentDetailResponse> RequestEnrollmentAsync(Guid eventId, Guid organizationMemberId, string? reason, CancellationToken ct = default)
+    {
+        var ev = await _events.GetByIdAsync(eventId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Zajęcia {eventId} nie istnieją.");
+
+        if (ev.Status == EventStatus.Cancelled)
+            throw new ServiceException(ServiceErrorCode.EventCancelled, "Nie można złożyć wniosku na odwołane zajęcia.");
+
+        if (ev.Status == EventStatus.Completed)
+            throw new ServiceException(ServiceErrorCode.EventCompleted, "Nie można złożyć wniosku na zakończone zajęcia.");
+
+        var member = await _members.GetByIdAsync(organizationMemberId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Uczestnik {organizationMemberId} nie istnieje.");
+
+        if (member.OrganizationId != ev.OrganizationId)
+            throw new ServiceException(ServiceErrorCode.ValidationError, "Uczestnik nie należy do organizacji tych zajęć.");
+
+        if (!member.IsActive)
+            throw new ServiceException(ServiceErrorCode.AccountInactive, "Konto uczestnika jest nieaktywne.");
+
+        // Czy uczestnik jest już zapisany lub ma oczekujący wniosek?
+        if (await _enrollments.IsEnrolledAsync(eventId, organizationMemberId, ct))
+            throw new ServiceException(ServiceErrorCode.MemberAlreadyEnrolled, "Uczestnik jest już zapisany na te zajęcia.");
+
+        if (await _enrollments.HasPendingRequestAsync(eventId, organizationMemberId, ct))
+            throw new ServiceException(ServiceErrorCode.Conflict, "Oczekujący wniosek o zapis już istnieje.");
+
+        var enrollment = new EventEnrollment
+        {
+            EventId              = eventId,
+            OrganizationMemberId = organizationMemberId,
+            Status               = EventEnrollmentStatus.PendingApproval,
+        };
+
+        var created = await _enrollments.AddAsync(enrollment, ct);
+        var details = await _enrollments.GetWithDetailsAsync(created.Id, ct);
+        return details!.ToDetail();
+    }
+
+    /// <inheritdoc/>
+    public async Task<EnrollmentDetailResponse> ApproveEnrollmentRequestAsync(Guid enrollmentId, string? reviewNote, CancellationToken ct = default)
+    {
+        var enrollment = await _enrollments.GetByIdAsync(enrollmentId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Zapis {enrollmentId} nie istnieje.");
+
+        if (enrollment.Status != EventEnrollmentStatus.PendingApproval)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Można zatwierdzać tylko wnioski ze statusem PendingApproval.");
+
+        enrollment.Status = EventEnrollmentStatus.Enrolled;
+        await _enrollments.UpdateAsync(enrollment, ct);
+
+        _logger.LogInformation("Wniosek o zapis {EnrollmentId} zatwierdzony. Notatka: {Note}", enrollmentId, reviewNote);
+
+        var details = await _enrollments.GetWithDetailsAsync(enrollmentId, ct);
+        return details!.ToDetail();
+    }
+
+    /// <inheritdoc/>
+    public async Task<EnrollmentDetailResponse> RejectEnrollmentRequestAsync(Guid enrollmentId, string? reviewNote, CancellationToken ct = default)
+    {
+        var enrollment = await _enrollments.GetByIdAsync(enrollmentId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Zapis {enrollmentId} nie istnieje.");
+
+        if (enrollment.Status != EventEnrollmentStatus.PendingApproval)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Można odrzucać tylko wnioski ze statusem PendingApproval.");
+
+        enrollment.Status = EventEnrollmentStatus.Cancelled;
+        await _enrollments.UpdateAsync(enrollment, ct);
+
+        _logger.LogInformation("Wniosek o zapis {EnrollmentId} odrzucony. Notatka: {Note}", enrollmentId, reviewNote);
+
+        var details = await _enrollments.GetWithDetailsAsync(enrollmentId, ct);
+        return details!.ToDetail();
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<EnrollmentRequestSummaryResponse>> GetPendingRequestsForOrganizationAsync(Guid organizationId, CancellationToken ct = default)
+    {
+        var pending = await _enrollments.GetPendingRequestsForOrganizationAsync(organizationId, ct);
+        return pending.Select(e => e.ToRequestSummary()).ToList();
+    }
 }

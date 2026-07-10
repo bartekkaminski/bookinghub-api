@@ -44,6 +44,7 @@ public sealed class AuthMeResponse
 
 public sealed class AuthMembershipInfo
 {
+    public Guid MemberId { get; set; }
     public Guid OrganizationId { get; set; }
     public string OrganizationName { get; set; } = string.Empty;
     public bool IsActive { get; set; }

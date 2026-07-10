@@ -227,6 +227,93 @@ public sealed class EnrollmentsController : BookingHubControllerBase
         await _enrollments.BulkMarkAttendedAsync(eventId, request, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Uczestnik składa wniosek o zapis (status PendingApproval — wymaga zatwierdzenia trenera).
+    /// Dostępne dla każdego członka organizacji; uczestnik może złożyć wniosek tylko dla siebie.
+    /// </summary>
+    [HttpPost("request-enrollment")]
+    [ProducesResponseType(typeof(EnrollmentDetailResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<EnrollmentDetailResponse>> RequestEnrollment(
+        Guid organizationId, Guid eventId,
+        [FromBody] RequestEnrollmentRequest request, CancellationToken ct)
+    {
+        var myMember = await CurrentUser.GetMemberAsync(organizationId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotMember, "Nie jesteś członkiem tej organizacji.");
+
+        var created = await _enrollments.RequestEnrollmentAsync(
+            eventId, myMember.Id, request.Reason, ct);
+
+        return CreatedAtAction(nameof(GetById),
+            new { organizationId, eventId, enrollmentId = created.Id }, created);
+    }
+
+    /// <summary>
+    /// Zatwierdza wniosek o zapis (PendingApproval → Enrolled). Admin, Manager lub Trainer.
+    /// </summary>
+    [HttpPost("{enrollmentId:guid}/approve")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
+    [ProducesResponseType(typeof(EnrollmentDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EnrollmentDetailResponse>> ApproveRequest(
+        Guid organizationId, Guid eventId, Guid enrollmentId,
+        [FromBody] ReviewEnrollmentRequestRequest request, CancellationToken ct)
+    {
+        var updated = await _enrollments.ApproveEnrollmentRequestAsync(enrollmentId, request.ReviewNote, ct);
+        return Ok(updated);
+    }
+
+    /// <summary>
+    /// Odrzuca wniosek o zapis (PendingApproval → Cancelled). Admin, Manager lub Trainer.
+    /// </summary>
+    [HttpPost("{enrollmentId:guid}/reject")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
+    [ProducesResponseType(typeof(EnrollmentDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EnrollmentDetailResponse>> RejectRequest(
+        Guid organizationId, Guid eventId, Guid enrollmentId,
+        [FromBody] ReviewEnrollmentRequestRequest request, CancellationToken ct)
+    {
+        var updated = await _enrollments.RejectEnrollmentRequestAsync(enrollmentId, request.ReviewNote, ct);
+        return Ok(updated);
+    }
+}
+
+/// <summary>
+/// Oczekujące wnioski o zapis na poziomie organizacji.
+/// Trasa: /api/organizations/{organizationId}/enrollment-requests
+/// </summary>
+[Route("api/organizations/{organizationId:guid}/enrollment-requests")]
+[RequireOrgMembership]
+public sealed class EnrollmentRequestsController : BookingHubControllerBase
+{
+    private readonly IEnrollmentService _enrollments;
+
+    public EnrollmentRequestsController(IEnrollmentService enrollments)
+    {
+        _enrollments = enrollments;
+    }
+
+    /// <summary>
+    /// Lista oczekujących wniosków o zapis w organizacji. Admin, Manager lub Trainer.
+    /// </summary>
+    [HttpGet("pending")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
+    [ProducesResponseType(typeof(IReadOnlyList<EnrollmentRequestSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<EnrollmentRequestSummaryResponse>>> GetPending(
+        Guid organizationId, CancellationToken ct)
+    {
+        var result = await _enrollments.GetPendingRequestsForOrganizationAsync(organizationId, ct);
+        return Ok(result);
+    }
 }
 
 /// <summary>

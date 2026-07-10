@@ -45,4 +45,27 @@ public interface IEnrollmentService
 
     /// <summary>Zbiorowe oznaczanie obecności dla wszystkich podanych zapisów.</summary>
     Task BulkMarkAttendedAsync(Guid eventId, BulkAttendanceRequest request, CancellationToken ct = default);
+
+    // ── Wnioski o zapis (PendingApproval) ─────────────────────────────────────
+
+    /// <summary>
+    /// Uczestnik składa wniosek o zapis na zajęcia (tworzy zapis ze statusem PendingApproval).
+    /// Rzuca wyjątek jeśli uczestnik jest już zapisany lub ma oczekujący wniosek.
+    /// </summary>
+    Task<EnrollmentDetailResponse> RequestEnrollmentAsync(Guid eventId, Guid organizationMemberId, string? reason, CancellationToken ct = default);
+
+    /// <summary>
+    /// Trener/Admin zatwierdza wniosek o zapis — zmienia status na Enrolled.
+    /// </summary>
+    Task<EnrollmentDetailResponse> ApproveEnrollmentRequestAsync(Guid enrollmentId, string? reviewNote, CancellationToken ct = default);
+
+    /// <summary>
+    /// Trener/Admin odrzuca wniosek o zapis — zmienia status na Cancelled.
+    /// </summary>
+    Task<EnrollmentDetailResponse> RejectEnrollmentRequestAsync(Guid enrollmentId, string? reviewNote, CancellationToken ct = default);
+
+    /// <summary>
+    /// Pobiera listę oczekujących wniosków o zapis (PendingApproval) w danej organizacji.
+    /// </summary>
+    Task<IReadOnlyList<EnrollmentRequestSummaryResponse>> GetPendingRequestsForOrganizationAsync(Guid organizationId, CancellationToken ct = default);
 }

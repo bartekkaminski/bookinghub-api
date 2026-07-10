@@ -86,3 +86,44 @@ public sealed class UpdateEventSeriesRequest
     public EventType DefaultEventType { get; set; } = EventType.GroupTraining;
     public bool IsActive { get; set; } = true;
 }
+
+/// <summary>Żądanie auto-generowania zajęć z reguły cykliczności serii.</summary>
+public sealed class GenerateEventsRequest
+{
+    /// <summary>Data początkowa zakresu generowania (włącznie).</summary>
+    [Required]
+    public DateOnly DateFrom { get; set; }
+
+    /// <summary>Data końcowa zakresu generowania (włącznie).</summary>
+    [Required]
+    public DateOnly DateTo { get; set; }
+
+    /// <summary>Godzina rozpoczęcia każdych zajęć (np. 18:00).</summary>
+    [Required]
+    public TimeOnly StartTime { get; set; }
+
+    /// <summary>Godzina zakończenia każdych zajęć (np. 19:30).</summary>
+    [Required]
+    public TimeOnly EndTime { get; set; }
+
+    /// <summary>Nadpisuje DefaultLocationId z serii — null = użyj domyślnej.</summary>
+    public Guid? OverrideLocationId { get; set; }
+
+    /// <summary>Nadpisuje DefaultGroupId z serii — null = użyj domyślnej.</summary>
+    public Guid? OverrideGroupId { get; set; }
+
+    /// <summary>Nadpisuje DefaultColor z serii — null = użyj domyślnego.</summary>
+    [StringLength(7)]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$")]
+    public string? OverrideColor { get; set; }
+}
+
+/// <summary>Wynik operacji generowania zajęć z serii.</summary>
+public sealed class GenerateEventsResponse
+{
+    /// <summary>Liczba nowo utworzonych zajęć.</summary>
+    public int GeneratedCount { get; set; }
+
+    /// <summary>Liczba pominięć — zajęcia o tym samym StartTime w tej serii już istniały.</summary>
+    public int SkippedCount { get; set; }
+}

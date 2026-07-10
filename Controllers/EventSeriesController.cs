@@ -13,12 +13,13 @@ namespace BookingHub.Api.Controllers;
 ///
 /// Trasa bazowa: /api/organizations/{organizationId}/event-series
 ///
-///   GET /               — lista stronicowana (Admin, Manager, Trainer)
-///   GET /all            — pełna lista do selectów (Admin, Manager, Trainer)
-///   GET /{seriesId}     — szczegóły (Admin, Manager, Trainer)
-///   POST /              — utwórz serię (Admin, Manager)
-///   PUT  /{seriesId}    — edytuj (Admin, Manager)
-///   DELETE /{seriesId}  — usuń (Admin)
+///   GET /                        — lista stronicowana (Admin, Manager, Trainer)
+///   GET /all                     — pełna lista do selectów (Admin, Manager, Trainer)
+///   GET /{seriesId}              — szczegóły (Admin, Manager, Trainer)
+///   POST /                       — utwórz serię (Admin, Manager)
+///   POST /{seriesId}/generate    — generuj zajęcia z RRULE (Admin, Manager)
+///   PUT  /{seriesId}             — edytuj (Admin, Manager)
+///   DELETE /{seriesId}           — usuń (Admin)
 /// </summary>
 [Route("api/organizations/{organizationId:guid}/event-series")]
 [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -85,6 +86,25 @@ public sealed class EventSeriesController : BookingHubControllerBase
         var created = await _series.CreateAsync(organizationId, request, ct);
         return CreatedAtAction(nameof(GetById),
             new { organizationId, seriesId = created.Id }, created);
+    }
+
+    /// <summary>
+    /// Generuje zajęcia z reguły cykliczności serii w podanym zakresie dat.
+    /// Pomija daty, dla których zajęcia o tym samym StartTime w tej serii już istnieją.
+    /// Admin lub Manager.
+    /// </summary>
+    [HttpPost("{seriesId:guid}/generate")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(typeof(GenerateEventsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GenerateEventsResponse>> Generate(
+        Guid organizationId, Guid seriesId,
+        [FromBody] GenerateEventsRequest request, CancellationToken ct)
+    {
+        var result = await _series.GenerateEventsAsync(organizationId, seriesId, request, ct);
+        return Ok(result);
     }
 
     /// <summary>

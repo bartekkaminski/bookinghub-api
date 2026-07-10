@@ -22,6 +22,9 @@ public interface IBaseRepository<T> where T : BaseEntity
     /// <summary>Dodaje nową encję do kontekstu i zapisuje zmiany.</summary>
     Task<T> AddAsync(T entity, CancellationToken cancellationToken = default);
 
+    /// <summary>Dodaje wiele encji w jednej transakcji (bulk insert).</summary>
+    Task<IReadOnlyList<T>> AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default);
+
     /// <summary>Aktualizuje istniejącą encję i zapisuje zmiany.</summary>
     Task<T> UpdateAsync(T entity, CancellationToken cancellationToken = default);
 

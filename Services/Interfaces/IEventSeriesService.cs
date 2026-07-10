@@ -25,4 +25,10 @@ public interface IEventSeriesService
 
     /// <summary>Usuwa serię (soft delete).</summary>
     Task DeleteAsync(Guid seriesId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Generuje zajęcia dla serii na podstawie reguły RRULE w podanym zakresie dat.
+    /// Pomija daty, dla których zajęcia o tym samym StartTime w tej serii już istnieją.
+    /// </summary>
+    Task<GenerateEventsResponse> GenerateEventsAsync(Guid organizationId, Guid seriesId, GenerateEventsRequest request, CancellationToken ct = default);
 }

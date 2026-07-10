@@ -80,4 +80,15 @@ public interface IEventEnrollmentRepository : IBaseRepository<EventEnrollment>
     /// Pobiera zapisy uczestnika w danym przedziale dat (do kalkulacji rozliczeń).
     /// </summary>
     Task<IReadOnlyList<EventEnrollment>> GetByMemberInRangeAsync(Guid organizationMemberId, DateTime from, DateTime to, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pobiera wszystkie oczekujące wnioski o zapis (status PendingApproval) dla danej organizacji.
+    /// Ładuje powiązane Event i OrganizationMember z Person.
+    /// </summary>
+    Task<IReadOnlyList<EventEnrollment>> GetPendingRequestsForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sprawdza czy uczestnik ma już oczekujący wniosek o zapis (status PendingApproval) na dane zajęcia.
+    /// </summary>
+    Task<bool> HasPendingRequestAsync(Guid eventId, Guid organizationMemberId, CancellationToken cancellationToken = default);
 }
