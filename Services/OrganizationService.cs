@@ -17,6 +17,7 @@ public sealed class OrganizationService : IOrganizationService
 {
     private readonly IOrganizationRepository _organizations;
     private readonly IOrganizationMemberRepository _members;
+    private readonly IPersonRepository _persons;
     private readonly IGroupRepository _groups;
     private readonly ITeamRepository _teams;
     private readonly OrganizationLimits _limits;
@@ -25,6 +26,7 @@ public sealed class OrganizationService : IOrganizationService
     public OrganizationService(
         IOrganizationRepository organizations,
         IOrganizationMemberRepository members,
+        IPersonRepository persons,
         IGroupRepository groups,
         ITeamRepository teams,
         IOptions<OrganizationLimits> limits,
@@ -32,6 +34,7 @@ public sealed class OrganizationService : IOrganizationService
     {
         _organizations = organizations;
         _members       = members;
+        _persons       = persons;
         _groups        = groups;
         _teams         = teams;
         _limits        = limits.Value;
@@ -80,12 +83,19 @@ public sealed class OrganizationService : IOrganizationService
         entity.CreatedByPersonId = creatorPersonId;
         var created = await _organizations.AddAsync(entity, ct);
 
+        // Jeśli twórca nie ma imienia/nazwiska — użyj e-maila jako DisplayName (fallback).
+        var creatorPerson = await _persons.GetWithUserAsync(creatorPersonId, ct);
+        var displayNameFallback = (creatorPerson?.FirstName == null && creatorPerson?.LastName == null)
+            ? creatorPerson?.User?.Email
+            : null;
+
         // Twórca automatycznie staje się pierwszym Adminem organizacji.
         var adminMember = new OrganizationMember
         {
             OrganizationId = created.Id,
             PersonId       = creatorPersonId,
             IsActive       = true,
+            DisplayName    = displayNameFallback,
             Roles          = [new OrganizationMemberRole { Role = MemberRole.Admin }],
         };
         await _members.AddAsync(adminMember, ct);
