@@ -1,0 +1,203 @@
+using System.ComponentModel.DataAnnotations;
+using BookingHub.Api.Models;
+
+namespace BookingHub.Api.Dtos.Member;
+
+/// <summary>Skrócone dane członka organizacji — do list.</summary>
+public sealed class MemberSummaryResponse
+{
+    public Guid Id { get; set; }
+    public Guid PersonId { get; set; }
+    public Guid OrganizationId { get; set; }
+
+    /// <summary>DisplayName jeśli ustawiony, inaczej FirstName + LastName z profilu.</summary>
+    public string DisplayName { get; set; } = string.Empty;
+    public string? PhotoUrl { get; set; }
+    public string? Color { get; set; }
+    public int? Priority { get; set; }
+    public bool IsActive { get; set; }
+    public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+}
+
+/// <summary>Pełne dane członka organizacji — widok szczegółowy.</summary>
+public sealed class MemberDetailResponse
+{
+    public Guid Id { get; set; }
+    public Guid PersonId { get; set; }
+    public Guid OrganizationId { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? FullName => FirstName is not null || LastName is not null
+        ? $"{FirstName} {LastName}".Trim()
+        : null;
+    public string? DisplayName { get; set; }
+    public string? PhotoUrl { get; set; }
+    public string? Color { get; set; }
+    public int? Priority { get; set; }
+    public bool IsActive { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+    public IReadOnlyList<MemberGroupInfo> Groups { get; set; } = [];
+    public IReadOnlyList<MemberTeamInfo> Teams { get; set; } = [];
+    public IReadOnlyList<MemberTrainerInfo> AssignedTrainers { get; set; } = [];
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class MemberGroupInfo
+{
+    public Guid GroupId { get; set; }
+    public string GroupName { get; set; } = string.Empty;
+    public string? Color { get; set; }
+}
+
+public sealed class MemberTeamInfo
+{
+    public Guid TeamId { get; set; }
+    public string? TeamName { get; set; }
+    public int? Priority { get; set; }
+}
+
+public sealed class MemberTrainerInfo
+{
+    public Guid TrainerMemberId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Color { get; set; }
+}
+
+/// <summary>
+/// Dane do dodania osoby jako członka organizacji (przez admina).
+/// Osoba (Person) musi już istnieć w bazie.
+/// </summary>
+public sealed class AddMemberRequest
+{
+    [Required]
+    public Guid PersonId { get; set; }
+
+    /// <summary>Co najmniej jedna rola jest wymagana.</summary>
+    [Required]
+    [MinLength(1)]
+    public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+
+    [StringLength(100)]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Kolor hex, np. "#3B82F6". Null = domyślny szary.</summary>
+    [StringLength(7)]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$", ErrorMessage = "Kolor musi być w formacie hex #RRGGBB.")]
+    public string? Color { get; set; }
+
+    /// <summary>Priorytet uczestnika. Null = brak priorytetu.</summary>
+    [Range(1, int.MaxValue)]
+    public int? Priority { get; set; }
+}
+
+/// <summary>Dane do aktualizacji danych per-org członka (DisplayName, Color, Priority, Photo) oraz danych osobowych (FirstName, LastName, DateOfBirth).</summary>
+public sealed class UpdateMemberRequest
+{
+    [StringLength(50)]
+    public string? FirstName { get; set; }
+
+    [StringLength(50)]
+    public string? LastName { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    [StringLength(100)]
+    public string? DisplayName { get; set; }
+
+    [StringLength(500)]
+    [Url]
+    public string? PhotoUrl { get; set; }
+
+    [StringLength(7)]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$", ErrorMessage = "Kolor musi być w formacie hex #RRGGBB.")]
+    public string? Color { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? Priority { get; set; }
+}
+
+/// <summary>Żądanie dodania roli do członkostwa.</summary>
+public sealed class AddMemberRoleRequest
+{
+    [Required]
+    public MemberRole Role { get; set; }
+}
+
+/// <summary>Żądanie ustawienia aktywności członkostwa.</summary>
+public sealed class SetMemberActiveRequest
+{
+    public bool IsActive { get; set; }
+}
+
+/// <summary>Żądanie przypisania stałego trenera do uczestnika.</summary>
+public sealed class AssignTrainerToParticipantRequest
+{
+    [Required]
+    public Guid TrainerMemberId { get; set; }
+}
+
+/// <summary>
+/// Dane do tworzenia pełnego użytkownika przez admina:
+/// zakłada konto Kinde + Person + OrganizationMember w jednym kroku.
+/// </summary>
+public sealed class CreateMemberWithAccountRequest
+{
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required]
+    [EmailAddress]
+    [StringLength(256)]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(1)]
+    public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+
+    [StringLength(100)]
+    public string? DisplayName { get; set; }
+
+    [StringLength(7)]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$")]
+    public string? Color { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? Priority { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+}
+
+/// <summary>Tworzy profil Person (bez konta Kinde) i dodaje go jako członka organizacji.</summary>
+public sealed class CreateMemberProfileRequest
+{
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(1)]
+    public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    [StringLength(100)]
+    public string? DisplayName { get; set; }
+
+    [StringLength(7)]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$")]
+    public string? Color { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? Priority { get; set; }
+}
