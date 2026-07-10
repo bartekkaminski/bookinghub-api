@@ -28,6 +28,19 @@ public sealed class OrganizationsController : BookingHubControllerBase
     }
 
     /// <summary>
+    /// Zwraca limit tworzenia organizacji oraz ile bieżący użytkownik już ich utworzył.
+    /// Używane przez frontend do blokowania przycisku "Utwórz organizację".
+    /// </summary>
+    [HttpGet("limits")]
+    [ProducesResponseType(typeof(OrganizationCreationLimitsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<OrganizationCreationLimitsResponse>> GetCreationLimits(CancellationToken ct)
+    {
+        var personId = RequirePersonId();
+        var limits   = await _organizations.GetCreationLimitsAsync(personId, ct);
+        return Ok(limits);
+    }
+
+    /// <summary>
     /// Stronicowana lista organizacji zalogowanego użytkownika (tylko te, do których należy).
     /// </summary>
     [HttpGet]

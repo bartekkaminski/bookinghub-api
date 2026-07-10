@@ -24,6 +24,11 @@ public interface IOrganizationRepository : IBaseRepository<Organization>
     Task<bool> IsNameTakenAsync(string name, Guid? excludeOrganizationId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Zwraca liczbę organizacji utworzonych przez daną osobę (CreatedByPersonId).
+    /// </summary>
+    Task<int> CountCreatedByPersonAsync(Guid personId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Pobiera wszystkie organizacje, do których należy dana osoba.
     /// </summary>
     Task<IReadOnlyList<Organization>> GetByPersonIdAsync(Guid personId, CancellationToken cancellationToken = default);

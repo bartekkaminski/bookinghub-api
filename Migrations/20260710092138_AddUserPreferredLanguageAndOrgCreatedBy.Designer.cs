@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BookingHub.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260710073102_AddUserPreferredLanguage")]
-    partial class AddUserPreferredLanguage
+    [Migration("20260710092138_AddUserPreferredLanguageAndOrgCreatedBy")]
+    partial class AddUserPreferredLanguageAndOrgCreatedBy
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -765,6 +765,9 @@ namespace BookingHub.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("CreatedByPersonId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -784,6 +787,8 @@ namespace BookingHub.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByPersonId");
 
                     b.ToTable("Organizations");
                 });
@@ -1665,6 +1670,16 @@ namespace BookingHub.Api.Migrations
                     b.Navigation("Message");
 
                     b.Navigation("Recipient");
+                });
+
+            modelBuilder.Entity("BookingHub.Api.Models.Organization", b =>
+                {
+                    b.HasOne("BookingHub.Api.Models.Person", "CreatedByPerson")
+                        .WithMany()
+                        .HasForeignKey("CreatedByPersonId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedByPerson");
                 });
 
             modelBuilder.Entity("BookingHub.Api.Models.OrganizationMember", b =>

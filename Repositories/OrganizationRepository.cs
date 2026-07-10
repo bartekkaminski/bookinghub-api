@@ -57,6 +57,10 @@ public sealed class OrganizationRepository : BaseRepository<Organization>, IOrga
             cancellationToken);
 
     /// <inheritdoc/>
+    public async Task<int> CountCreatedByPersonAsync(Guid personId, CancellationToken cancellationToken = default)
+        => await _dbSet.CountAsync(o => o.CreatedByPersonId == personId, cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<Organization>> GetByPersonIdAsync(Guid personId, CancellationToken cancellationToken = default)
         => await _dbSet
             .AsNoTracking()

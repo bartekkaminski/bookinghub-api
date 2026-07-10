@@ -5,6 +5,7 @@ using BookingHub.Api.Repositories;
 using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services;
 using BookingHub.Api.Services.Interfaces;
+using BookingHub.Api.Settings;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -157,6 +158,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorCodesToAdd: null));
 });
+
+// ── Opcje domenowe ─────────────────────────────────────────────────────────────
+builder.Services.Configure<OrganizationLimits>(
+    builder.Configuration.GetSection(OrganizationLimits.SectionName));
 
 // ── Repositories ───────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IUserRepository, UserRepository>();

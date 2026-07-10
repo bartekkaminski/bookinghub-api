@@ -5,6 +5,8 @@ using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services.Exceptions;
 using BookingHub.Api.Services.Interfaces;
 using BookingHub.Api.Services.Mappings;
+using BookingHub.Api.Settings;
+using Microsoft.Extensions.Options;
 
 namespace BookingHub.Api.Services;
 
@@ -17,6 +19,7 @@ public sealed class OrganizationService : IOrganizationService
     private readonly IOrganizationMemberRepository _members;
     private readonly IGroupRepository _groups;
     private readonly ITeamRepository _teams;
+    private readonly OrganizationLimits _limits;
     private readonly ILogger<OrganizationService> _logger;
 
     public OrganizationService(
@@ -24,12 +27,14 @@ public sealed class OrganizationService : IOrganizationService
         IOrganizationMemberRepository members,
         IGroupRepository groups,
         ITeamRepository teams,
+        IOptions<OrganizationLimits> limits,
         ILogger<OrganizationService> logger)
     {
         _organizations = organizations;
         _members       = members;
         _groups        = groups;
         _teams         = teams;
+        _limits        = limits.Value;
         _logger        = logger;
     }
 
@@ -58,11 +63,21 @@ public sealed class OrganizationService : IOrganizationService
     /// <inheritdoc/>
     public async Task<OrganizationDetailResponse> CreateAsync(CreateOrganizationRequest request, Guid creatorPersonId, CancellationToken ct = default)
     {
+        if (_limits.MaxOrganizationsPerCreator > 0)
+        {
+            var createdCount = await _organizations.CountCreatedByPersonAsync(creatorPersonId, ct);
+            if (createdCount >= _limits.MaxOrganizationsPerCreator)
+                throw new ServiceException(
+                    ServiceErrorCode.OrganizationCreationLimitReached,
+                    $"Osiągnięto limit {_limits.MaxOrganizationsPerCreator} organizacji na użytkownika.");
+        }
+
         if (await _organizations.IsNameTakenAsync(request.Name, null, ct))
             throw new ServiceException(ServiceErrorCode.OrganizationNameTaken,
                 $"Nazwa organizacji '{request.Name}' jest już zajęta.", nameof(request.Name));
 
-        var entity  = request.ToEntity();
+        var entity = request.ToEntity();
+        entity.CreatedByPersonId = creatorPersonId;
         var created = await _organizations.AddAsync(entity, ct);
 
         // Twórca automatycznie staje się pierwszym Adminem organizacji.
@@ -99,6 +114,19 @@ public sealed class OrganizationService : IOrganizationService
         var activeGroupsCount = await _groups.CountByOrganizationAsync(id, activeOnly: true, ct);
         var activeTeamsCount  = await _teams.CountByOrganizationAsync(id, activeOnly: true, ct);
         return org.ToDetail(membersCount, activeGroupsCount, activeTeamsCount);
+    }
+
+    /// <inheritdoc/>
+    public async Task<OrganizationCreationLimitsResponse> GetCreationLimitsAsync(Guid personId, CancellationToken ct = default)
+    {
+        var max   = _limits.MaxOrganizationsPerCreator;
+        var count = max > 0 ? await _organizations.CountCreatedByPersonAsync(personId, ct) : 0;
+        return new OrganizationCreationLimitsResponse
+        {
+            MaxOrganizationsPerCreator = max,
+            CreatedByMeCount           = count,
+            CanCreate                  = max <= 0 || count < max,
+        };
     }
 
     /// <inheritdoc/>

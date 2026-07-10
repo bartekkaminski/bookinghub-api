@@ -29,6 +29,8 @@ public enum ServiceErrorCode
     // ── Organization ──────────────────────────────────────────────────────────
     /// <summary>Nazwa organizacji jest już zajęta.</summary>
     OrganizationNameTaken,
+    /// <summary>Przekroczono limit tworzonych organizacji dla tego użytkownika.</summary>
+    OrganizationCreationLimitReached,
     /// <summary>Osoba jest już członkiem tej organizacji.</summary>
     AlreadyMember,
     /// <summary>Osoba nie jest członkiem tej organizacji.</summary>

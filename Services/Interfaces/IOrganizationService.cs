@@ -26,4 +26,9 @@ public interface IOrganizationService
 
     /// <summary>Usuwa organizację (soft delete). Tylko gdy brak aktywnych członkostw.</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Zwraca informację o limicie tworzenia organizacji i aktualnym stanie dla danego użytkownika.
+    /// </summary>
+    Task<OrganizationCreationLimitsResponse> GetCreationLimitsAsync(Guid personId, CancellationToken ct = default);
 }

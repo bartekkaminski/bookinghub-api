@@ -35,6 +35,19 @@ public sealed class CreateOrganizationRequest
     public string? Description { get; set; }
 }
 
+/// <summary>Informacja o limitach tworzenia organizacji dla zalogowanego użytkownika.</summary>
+public sealed class OrganizationCreationLimitsResponse
+{
+    /// <summary>Maksymalna dozwolona liczba tworzonych organizacji. 0 = brak limitu.</summary>
+    public int MaxOrganizationsPerCreator { get; set; }
+
+    /// <summary>Ile organizacji użytkownik już utworzył.</summary>
+    public int CreatedByMeCount { get; set; }
+
+    /// <summary>Czy użytkownik może jeszcze tworzyć organizacje.</summary>
+    public bool CanCreate { get; set; }
+}
+
 /// <summary>Dane do aktualizacji organizacji.</summary>
 public sealed class UpdateOrganizationRequest
 {

@@ -228,6 +228,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(o => o.Name).HasMaxLength(200).IsRequired();
             e.Property(o => o.Description).HasMaxLength(1000);
+
+            e.HasOne(o => o.CreatedByPerson)
+             .WithMany()
+             .HasForeignKey(o => o.CreatedByPersonId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── OrganizationMember ───────────────────────────────────────────────
