@@ -28,6 +28,13 @@ public sealed class MessageService : IMessageService
     }
 
     /// <inheritdoc/>
+    public async Task<PagedResult<ConversationSummaryResponse>> GetConversationsAsync(Guid memberId, MessageFilterParams filter, CancellationToken ct = default)
+    {
+        var paged = await _messages.GetConversationsAsync(memberId, filter.Page, filter.PageSize, ct);
+        return paged.Map(m => m.ToConversationSummary(memberId));
+    }
+
+    /// <inheritdoc/>
     public async Task<PagedResult<MessageSummaryResponse>> GetInboxAsync(Guid memberId, MessageFilterParams filter, CancellationToken ct = default)
     {
         var paged = await _messages.GetInboxAsync(memberId, filter.Page, filter.PageSize, false, ct);
@@ -61,6 +68,13 @@ public sealed class MessageService : IMessageService
             recipientEntry.IsRead = true;
             recipientEntry.ReadAt = DateTime.UtcNow;
             await _messages.MarkAsReadAsync(messageId, requestingMemberId, ct);
+        }
+
+        // Oznacz też odpowiedzi w tym wątku jako przeczytane (są oddzielnymi rekordami Message,
+        // ale użytkownik je widzi otwierając wątek — nie powinny zawyżać licznika).
+        foreach (var reply in message.Replies)
+        {
+            await _messages.MarkAsReadAsync(reply.Id, requestingMemberId, ct);
         }
 
         return message.ToDetail();

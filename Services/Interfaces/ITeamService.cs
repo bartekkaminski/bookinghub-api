@@ -17,6 +17,9 @@ public interface ITeamService
     /// <summary>Pobiera wszystkie aktywne zespoły organizacji (do selectów).</summary>
     Task<IReadOnlyList<TeamSummaryResponse>> GetByOrganizationAsync(Guid organizationId, CancellationToken ct = default);
 
+    /// <summary>Pobiera aktywne zespoły, w których dany członek jest przypisany jako trener.</summary>
+    Task<IReadOnlyList<TeamSummaryResponse>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken ct = default);
+
     /// <summary>Tworzy nowy zespół.</summary>
     Task<TeamDetailResponse> CreateAsync(Guid organizationId, CreateTeamRequest request, CancellationToken ct = default);
 

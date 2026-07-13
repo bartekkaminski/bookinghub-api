@@ -133,6 +133,9 @@ public sealed class TeamFilterParams : FilterParams
 
     /// <summary>Filtr po identyfikatorze grupy — zwraca zespoły przypisane do danej grupy.</summary>
     public Guid? GroupId { get; set; }
+
+    /// <summary>Filtr po trenerze — zwraca tylko zespoły, w których dany członek jest przypisany jako trener.</summary>
+    public Guid? TrainerMemberId { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

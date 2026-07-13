@@ -76,6 +76,27 @@ public sealed class ReplyMessageRequest
     public string Body { get; set; } = string.Empty;
 }
 
+/// <summary>Widok wątku konwersacji — do zunifikowanej listy wiadomości.</summary>
+public sealed class ConversationSummaryResponse
+{
+    public Guid Id { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public DateTime SentAt { get; set; }
+    public DateTime LastMessageAt { get; set; }
+    public string LastMessagePreview { get; set; } = string.Empty;
+    public string LastSenderName { get; set; } = string.Empty;
+    public bool HasUnread { get; set; }
+    public int UnreadCount { get; set; }
+    public int RepliesCount { get; set; }
+    public bool IsAutomatic { get; set; }
+    public bool InitiatedByMe { get; set; }
+    public Guid? RelatedEventId { get; set; }
+    public string? RelatedEventTitle { get; set; }
+    public string OtherPartyName { get; set; } = string.Empty;
+    public Guid? OtherPartyMemberId { get; set; }
+    public int ParticipantsCount { get; set; }
+}
+
 /// <summary>Liczba nieprzeczytanych wiadomości.</summary>
 public sealed class UnreadCountResponse
 {

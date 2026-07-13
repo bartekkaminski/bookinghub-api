@@ -56,6 +56,9 @@ public sealed class TeamRepository : BaseRepository<Team>, ITeamRepository
         if (filter.GroupId.HasValue)
             query = query.Where(t => t.Groups.Any(tg => tg.GroupId == filter.GroupId.Value));
 
+        if (filter.TrainerMemberId.HasValue)
+            query = query.Where(t => t.Trainers.Any(tt => tt.TrainerMemberId == filter.TrainerMemberId.Value));
+
         query = ApplySorting(query, filter);
 
         var totalCount = await query.CountAsync(cancellationToken);

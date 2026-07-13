@@ -54,6 +54,13 @@ public sealed class TeamService : ITeamService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<TeamSummaryResponse>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken ct = default)
+    {
+        var teams = await _teams.GetByTrainerAsync(trainerMemberId, ct);
+        return teams.Where(t => t.IsActive).Select(t => t.ToSummary()).ToList();
+    }
+
+    /// <inheritdoc/>
     public async Task<TeamDetailResponse> CreateAsync(Guid organizationId, CreateTeamRequest request, CancellationToken ct = default)
     {
         var orgExists = await _organizations.ExistsAsync(organizationId, ct);

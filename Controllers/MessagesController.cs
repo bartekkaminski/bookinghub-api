@@ -13,6 +13,7 @@ namespace BookingHub.Api.Controllers;
 ///
 /// Trasa bazowa: /api/organizations/{organizationId}/messages
 ///
+///   GET /conversations  — zunifikowana lista wątków (wysłane + odebrane)
 ///   GET /inbox          — skrzynka odbiorcza zalogowanego (wszyscy)
 ///   GET /outbox         — skrzynka nadawcza zalogowanego (wszyscy)
 ///   GET /unread-count   — liczba nieprzeczytanych (wszyscy)
@@ -33,6 +34,23 @@ public sealed class MessagesController : BookingHubControllerBase
     public MessagesController(IMessageService messages)
     {
         _messages = messages;
+    }
+
+    /// <summary>
+    /// Zunifikowana lista wątków konwersacji — wysłane i odebrane w jednym widoku,
+    /// posortowane po dacie ostatniej aktywności.
+    /// </summary>
+    [HttpGet("conversations")]
+    [ProducesResponseType(typeof(PagedResult<ConversationSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<ConversationSummaryResponse>>> GetConversations(
+        Guid organizationId, [FromQuery] MessageFilterParams filter, CancellationToken ct)
+    {
+        var member = await CurrentUser.GetMemberAsync(organizationId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotMember,
+                "Nie jesteś członkiem tej organizacji.");
+
+        var result = await _messages.GetConversationsAsync(member.Id, filter, ct);
+        return Ok(result);
     }
 
     /// <summary>

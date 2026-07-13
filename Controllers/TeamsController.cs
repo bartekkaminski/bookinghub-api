@@ -42,6 +42,8 @@ public sealed class TeamsController : BookingHubControllerBase
 
     /// <summary>
     /// Stronicowana lista zespołów w organizacji.
+    /// Trenerzy widzą wyłącznie zespoły, do których są przypisani — filtr jest wymuszany
+    /// po stronie serwera niezależnie od parametrów żądania.
     /// </summary>
     [HttpGet]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -49,12 +51,20 @@ public sealed class TeamsController : BookingHubControllerBase
     public async Task<ActionResult<PagedResult<TeamSummaryResponse>>> GetPaged(
         Guid organizationId, [FromQuery] TeamFilterParams filter, CancellationToken ct)
     {
+        var isAdminOrManager = await CurrentUser.IsAdminOrManagerAsync(organizationId, ct);
+        if (!isAdminOrManager)
+        {
+            var myMember = await CurrentUser.GetMemberAsync(organizationId, ct);
+            filter.TrainerMemberId = myMember?.Id;
+        }
+
         var result = await _teams.GetPagedAsync(organizationId, filter, ct);
         return Ok(result);
     }
 
     /// <summary>
     /// Pełna lista aktywnych zespołów (do selectów w formularzach).
+    /// Trenerzy widzą wyłącznie własne zespoły — filtr wymuszany po stronie serwera.
     /// </summary>
     [HttpGet("all")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -62,6 +72,15 @@ public sealed class TeamsController : BookingHubControllerBase
     public async Task<ActionResult<IReadOnlyList<TeamSummaryResponse>>> GetAll(
         Guid organizationId, CancellationToken ct)
     {
+        var isAdminOrManager = await CurrentUser.IsAdminOrManagerAsync(organizationId, ct);
+        if (!isAdminOrManager)
+        {
+            var myMember = await CurrentUser.GetMemberAsync(organizationId, ct);
+            if (myMember is null) return Ok(Array.Empty<TeamSummaryResponse>());
+            var trainerTeams = await _teams.GetByTrainerAsync(myMember.Id, ct);
+            return Ok(trainerTeams);
+        }
+
         var result = await _teams.GetByOrganizationAsync(organizationId, ct);
         return Ok(result);
     }

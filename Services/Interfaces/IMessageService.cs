@@ -8,6 +8,9 @@ namespace BookingHub.Api.Services.Interfaces;
 /// </summary>
 public interface IMessageService
 {
+    /// <summary>Pobiera zunifikowaną listę wątków konwersacji (wysłane + odebrane) posortowanych po ostatniej aktywności.</summary>
+    Task<PagedResult<ConversationSummaryResponse>> GetConversationsAsync(Guid memberId, MessageFilterParams filter, CancellationToken ct = default);
+
     /// <summary>Pobiera stronicowaną skrzynkę odbiorczą dla danego członka.</summary>
     Task<PagedResult<MessageSummaryResponse>> GetInboxAsync(Guid memberId, MessageFilterParams filter, CancellationToken ct = default);
 

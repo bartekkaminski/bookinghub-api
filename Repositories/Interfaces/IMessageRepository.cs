@@ -34,6 +34,12 @@ public interface IMessageRepository : IBaseRepository<Message>
     Task<PagedResult<Message>> GetOutboxAsync(Guid senderMemberId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Pobiera zunifikowaną listę wątków konwersacji — zarówno wysłanych jak i odebranych przez danego członka,
+    /// posortowanych po dacie ostatniej aktywności (odpowiedź lub wiadomość oryginalna).
+    /// </summary>
+    Task<PagedResult<Message>> GetConversationsAsync(Guid memberId, int page, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Pobiera wiadomości powiązane z konkretnymi zajęciami.
     /// </summary>
     Task<IReadOnlyList<Message>> GetByRelatedEventAsync(Guid eventId, CancellationToken cancellationToken = default);

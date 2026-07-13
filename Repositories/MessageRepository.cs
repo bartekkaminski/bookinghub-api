@@ -22,6 +22,11 @@ public sealed class MessageRepository : BaseRepository<Message>, IMessageReposit
             .Include(m => m.Recipients)
                 .ThenInclude(r => r.Recipient)
                     .ThenInclude(rm => rm.Person)
+            .Include(m => m.Replies.OrderBy(r => r.SentAt))
+                .ThenInclude(r => r.Sender)
+                    .ThenInclude(s => s.Person)
+            .Include(m => m.Replies)
+                .ThenInclude(r => r.Recipients)
             .Include(m => m.RelatedEvent)
             .Include(m => m.ParentMessage)
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
@@ -139,6 +144,52 @@ public sealed class MessageRepository : BaseRepository<Message>, IMessageReposit
     }
 
     /// <inheritdoc/>
+    public async Task<PagedResult<Message>> GetConversationsAsync(Guid memberId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var rootQuery = _dbSet
+            .AsNoTracking()
+            .Where(m => m.ParentMessageId == null &&
+                        (m.SenderMemberId == memberId ||
+                         m.Recipients.Any(r => r.RecipientMemberId == memberId)));
+
+        var totalCount = await rootQuery.CountAsync(cancellationToken);
+
+        // Wyznacz kolejność po dacie ostatniej aktywności (ostatnia odpowiedź lub oryginał)
+        var orderedIds = await rootQuery
+            .Select(m => new
+            {
+                m.Id,
+                LastAt = m.Replies.Any()
+                    ? (DateTime?)m.Replies.Max(r => r.SentAt)
+                    : (DateTime?)m.SentAt,
+            })
+            .OrderByDescending(x => x.LastAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        if (orderedIds.Count == 0)
+            return new PagedResult<Message>([], page, pageSize, totalCount);
+
+        var items = await _dbSet
+            .AsNoTracking()
+            .Include(m => m.Sender).ThenInclude(s => s.Person)
+            .Include(m => m.Recipients).ThenInclude(r => r.Recipient).ThenInclude(rm => rm.Person)
+            .Include(m => m.Replies.OrderByDescending(r => r.SentAt))
+                .ThenInclude(r => r.Sender).ThenInclude(s => s.Person)
+            .Include(m => m.Replies)
+                .ThenInclude(r => r.Recipients)
+            .Include(m => m.RelatedEvent)
+            .Where(m => orderedIds.Contains(m.Id))
+            .ToListAsync(cancellationToken);
+
+        // Zachowaj kolejność wyznaczoną przez orderedIds
+        var ordered = orderedIds.Select(id => items.First(m => m.Id == id)).ToList();
+        return new PagedResult<Message>(ordered, page, pageSize, totalCount);
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<Message>> GetByRelatedEventAsync(Guid eventId, CancellationToken cancellationToken = default)
         => await _dbSet
             .AsNoTracking()
@@ -151,7 +202,8 @@ public sealed class MessageRepository : BaseRepository<Message>, IMessageReposit
     /// <inheritdoc/>
     public async Task<int> GetUnreadCountAsync(Guid recipientMemberId, CancellationToken cancellationToken = default)
         => await _context.Set<MessageRecipient>()
-            .CountAsync(r => r.RecipientMemberId == recipientMemberId && !r.IsRead, cancellationToken);
+            .Where(r => r.RecipientMemberId == recipientMemberId && !r.IsRead)
+            .CountAsync(cancellationToken);
 
     /// <inheritdoc/>
     public async Task<bool> MarkAsReadAsync(Guid messageId, Guid recipientMemberId, CancellationToken cancellationToken = default)
