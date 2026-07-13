@@ -116,7 +116,7 @@ public sealed class DiagnosticsController : ControllerBase
         if (FirebaseApp.DefaultInstance is null)
             return BadRequest(new { error = "Firebase not initialized" });
 
-        var token = await db.UserDeviceTokens
+        var token = await _db.UserDeviceTokens
             .Where(t => t.Token.StartsWith(tokenPrefix))
             .Select(t => t.Token)
             .FirstOrDefaultAsync(ct);
