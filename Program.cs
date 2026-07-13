@@ -35,10 +35,19 @@ string? firebaseKeyJson = null;
 
 if (!string.IsNullOrWhiteSpace(firebaseKeyNormalized))
 {
+    // Zapisz prefix do diagnostics (bez ujawniania całego klucza)
+    FirebaseInitError.RawKeyPrefix = firebaseKeyNormalized.Length > 30
+        ? firebaseKeyNormalized[..30] + "…"
+        : firebaseKeyNormalized;
+
     if (firebaseKeyNormalized.StartsWith('{'))
     {
         // Surowy JSON — używamy bezpośrednio
         firebaseKeyJson = firebaseKeyNormalized;
+        FirebaseInitError.Base64Decoded = false;
+        FirebaseInitError.JsonPrefix    = firebaseKeyNormalized.Length > 30
+            ? firebaseKeyNormalized[..30] + "…"
+            : firebaseKeyNormalized;
     }
     else
     {
@@ -50,12 +59,17 @@ if (!string.IsNullOrWhiteSpace(firebaseKeyNormalized))
                 .Replace("\n", "")
                 .Replace("\r", "");
             firebaseKeyJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cleanBase64));
+            FirebaseInitError.Base64Decoded = true;
+            FirebaseInitError.JsonPrefix    = firebaseKeyJson.Length > 30
+                ? firebaseKeyJson[..30] + "…"
+                : firebaseKeyJson;
         }
         catch (FormatException ex)
         {
             Console.Error.WriteLine($"[Firebase] Nie udało się zdekodować Base64: {ex.Message}. Próbuję użyć jako raw JSON.");
-            // Ostatnia próba — może to jednak JSON z dziwnym formatowaniem
             firebaseKeyJson = firebaseKeyNormalized;
+            FirebaseInitError.Base64Decoded = false;
+            FirebaseInitError.Message       = $"Base64 decode failed: {ex.Message}";
         }
     }
 }

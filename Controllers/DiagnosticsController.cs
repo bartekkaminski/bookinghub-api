@@ -88,6 +88,9 @@ public sealed class DiagnosticsController : ControllerBase
                 envKeyPresent = firebaseKeyPresent,
                 status        = firebaseInitialized ? "OK" : (firebaseKeyPresent ? "KEY_PRESENT_BUT_INIT_FAILED" : "NO_KEY"),
                 initError     = FirebaseInitError.Message,
+                rawKeyPrefix  = FirebaseInitError.RawKeyPrefix,
+                base64Decoded = FirebaseInitError.Base64Decoded,
+                jsonPrefix    = FirebaseInitError.JsonPrefix,
             },
             outbox = new
             {
