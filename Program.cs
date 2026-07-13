@@ -1,5 +1,6 @@
 using BookingHub.Api.Data;
 using BookingHub.Api.Hubs;
+using BookingHub.Api.Infrastructure;
 using BookingHub.Api.Infrastructure.Authorization;
 using BookingHub.Api.Middleware;
 using BookingHub.Api.Repositories;
@@ -27,18 +28,35 @@ var builder = WebApplication.CreateBuilder(args);
 var firebaseKeyRaw = builder.Configuration["Firebase:ServiceAccountKeyJson"]
     ?? Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_KEY");
 
-// Obsługa zarówno surowego JSON jak i Base64-enkodowanego JSON (potrzebne na platformach chmurowych
-// takich jak DigitalOcean, które mają problemy z wartościami zawierającymi znaki specjalne).
-var firebaseKeyJson = firebaseKeyRaw;
-if (!string.IsNullOrWhiteSpace(firebaseKeyRaw) && !firebaseKeyRaw.TrimStart().StartsWith('{'))
+// Normalizacja: usuń otaczające białe znaki i ewentualne apostrofy (z .env z single-quote syntax)
+var firebaseKeyNormalized = firebaseKeyRaw?.Trim().Trim('\'').Trim('"').Trim();
+
+string? firebaseKeyJson = null;
+
+if (!string.IsNullOrWhiteSpace(firebaseKeyNormalized))
 {
-    try
+    if (firebaseKeyNormalized.StartsWith('{'))
     {
-        firebaseKeyJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(firebaseKeyRaw));
+        // Surowy JSON — używamy bezpośrednio
+        firebaseKeyJson = firebaseKeyNormalized;
     }
-    catch (FormatException)
+    else
     {
-        // Nie jest Base64 — używamy wartości bez zmian
+        // Prawdopodobnie Base64 — usuń whitespace (DigitalOcean może dodać newline) i zdekoduj
+        try
+        {
+            var cleanBase64 = firebaseKeyNormalized
+                .Replace(" ", "")
+                .Replace("\n", "")
+                .Replace("\r", "");
+            firebaseKeyJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cleanBase64));
+        }
+        catch (FormatException ex)
+        {
+            Console.Error.WriteLine($"[Firebase] Nie udało się zdekodować Base64: {ex.Message}. Próbuję użyć jako raw JSON.");
+            // Ostatnia próba — może to jednak JSON z dziwnym formatowaniem
+            firebaseKeyJson = firebaseKeyNormalized;
+        }
     }
 }
 
@@ -46,18 +64,25 @@ if (!string.IsNullOrWhiteSpace(firebaseKeyJson))
 {
     try
     {
-        // Używamy FromStream zamiast FromJson (FromJson oznaczone jako deprecated w Google.Apis.Auth 1.73+)
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(firebaseKeyJson));
         FirebaseApp.Create(new AppOptions
         {
             Credential = GoogleCredential.FromStream(stream),
         });
+        Console.WriteLine("[Firebase] Admin SDK zainicjowany pomyślnie.");
     }
     catch (Exception ex)
     {
-        // Loguj błąd, ale nie przerywaj startu — FCM jest opcjonalny
+        // Loguj błąd — FCM jest opcjonalny, ale warto wiedzieć co poszło nie tak
         Console.Error.WriteLine($"[Firebase] Błąd inicjalizacji: {ex.Message}");
+        // Zapisz błąd globalnie — dostępny przez /api/diagnostics
+        FirebaseInitError.Message = ex.Message;
     }
+}
+else if (!string.IsNullOrWhiteSpace(firebaseKeyRaw))
+{
+    Console.Error.WriteLine("[Firebase] Klucz jest obecny, ale po normalizacji jest pusty.");
+    FirebaseInitError.Message = "Key present but empty after normalization.";
 }
 
 // ── Uwierzytelnianie JWT (Kinde jako OIDC provider) ──────────────────────────

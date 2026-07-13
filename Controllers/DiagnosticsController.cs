@@ -1,4 +1,5 @@
 using BookingHub.Api.Data;
+using BookingHub.Api.Infrastructure;
 using FirebaseAdmin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -83,9 +84,10 @@ public sealed class DiagnosticsController : ControllerBase
             timestamp = now,
             firebase = new
             {
-                initialized      = firebaseInitialized,
-                envKeyPresent    = firebaseKeyPresent,
-                status           = firebaseInitialized ? "OK" : (firebaseKeyPresent ? "KEY_PRESENT_BUT_INIT_FAILED" : "NO_KEY"),
+                initialized   = firebaseInitialized,
+                envKeyPresent = firebaseKeyPresent,
+                status        = firebaseInitialized ? "OK" : (firebaseKeyPresent ? "KEY_PRESENT_BUT_INIT_FAILED" : "NO_KEY"),
+                initError     = FirebaseInitError.Message,
             },
             outbox = new
             {
