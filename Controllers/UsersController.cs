@@ -119,6 +119,10 @@ public sealed class UsersController : BookingHubControllerBase
                 new DeviceTokenResponse { Id = existing.Id, Platform = existing.Platform, CreatedAt = existing.CreatedAt });
         }
 
+        // Usuń stare tokeny tej samej platformy — jeden token na platformę na użytkownika.
+        // Zapobiega podwójnym powiadomieniom gdy przeglądarka wygeneruje nowy token FCM.
+        await _deviceTokens.DeleteOtherPlatformTokensAsync(id, request.Platform, request.Token, ct);
+
         var token = new Models.UserDeviceToken
         {
             UserId   = id,

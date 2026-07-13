@@ -110,6 +110,34 @@ public sealed class DiagnosticsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Usuwa zduplikowane tokeny — zostawia najnowszy dla każdej pary (userId, platform).
+    /// POST /api/diagnostics/cleanup-tokens
+    /// </summary>
+    [HttpPost("cleanup-tokens")]
+    public async Task<IActionResult> CleanupTokens(CancellationToken ct)
+    {
+        var duplicates = await db.UserDeviceTokens
+            .GroupBy(t => new { t.UserId, t.Platform })
+            .Where(g => g.Count() > 1)
+            .ToListAsync(ct);
+
+        int deleted = 0;
+        foreach (var group in duplicates)
+        {
+            var toDelete = group
+                .OrderByDescending(t => t.CreatedAt)
+                .Skip(1)
+                .ToList();
+
+            db.UserDeviceTokens.RemoveRange(toDelete);
+            deleted += toDelete.Count;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Ok(new { deleted, message = $"Usunięto {deleted} zduplikowanych tokenów" });
+    }
+
     [HttpPost("test-push/{tokenPrefix}")]
     public async Task<IActionResult> TestPush(string tokenPrefix, CancellationToken ct)
     {
