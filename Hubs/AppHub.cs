@@ -97,15 +97,23 @@ public sealed class AppHub : Hub
     }
 
     /// <summary>
-    /// Sygnał aktywności — aktualizuje LastSeenAt tokenów FCM użytkownika.
-    /// Wywoływane przez klienta co 60 sekund.
+    /// Sygnał aktywności — aktualizuje LastSeenAt wyłącznie dla konkretnego tokenu FCM urządzenia.
+    /// Wywoływane przez klienta co 60 sekund wraz z jego tokenem FCM.
+    ///
+    /// Kluczowe: aktualizujemy TYLKO token tego urządzenia, nie wszystkie tokeny użytkownika.
+    /// Dzięki temu desktop nie "ożywia" tokenu telefonu — FCM trafi na telefon gdy app jest
+    /// zamknięta, nawet jeśli użytkownik ma otwartą sesję na komputerze.
     /// </summary>
-    public async Task Heartbeat()
+    public async Task Heartbeat(string? fcmToken)
     {
         var userId = _currentUser.UserId;
         if (userId is null) return;
 
-        await _deviceTokens.UpdateLastSeenAsync(userId.Value, DateTime.UtcNow, Context.ConnectionAborted);
+        // Jeśli to urządzenie nie ma tokenu FCM (np. użytkownik nie włączył powiadomień),
+        // heartbeat jest no-op — nie ma czego aktualizować.
+        if (string.IsNullOrWhiteSpace(fcmToken)) return;
+
+        await _deviceTokens.UpdateLastSeenByTokenAsync(userId.Value, fcmToken, DateTime.UtcNow, Context.ConnectionAborted);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

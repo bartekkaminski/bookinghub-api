@@ -43,8 +43,8 @@ public sealed class UserDeviceTokenRepository : IUserDeviceTokenRepository
         => await _db.UserDeviceTokens
             .AnyAsync(t => t.UserId == userId && t.Token == token, ct);
 
-    public async Task UpdateLastSeenAsync(Guid userId, DateTime seenAt, CancellationToken ct = default)
+    public async Task UpdateLastSeenByTokenAsync(Guid userId, string fcmToken, DateTime seenAt, CancellationToken ct = default)
         => await _db.UserDeviceTokens
-            .Where(t => t.UserId == userId)
+            .Where(t => t.UserId == userId && t.Token == fcmToken)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSeenAt, seenAt), ct);
 }

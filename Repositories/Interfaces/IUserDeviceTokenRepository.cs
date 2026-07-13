@@ -10,9 +10,9 @@ public interface IUserDeviceTokenRepository
     Task<bool> ExistsAsync(Guid userId, string token, CancellationToken ct = default);
 
     /// <summary>
-    /// Aktualizuje LastSeenAt dla wszystkich tokenów FCM danego użytkownika.
-    /// Wywoływane przez AppHub.Heartbeat() co 60 sekund.
-    /// Używane przez FcmService do detekcji online/offline.
+    /// Aktualizuje LastSeenAt wyłącznie dla konkretnego tokenu FCM (identyfikowanego przez token string).
+    /// Wywoływane przez AppHub.Heartbeat() co 60 sekund — aktualizuje tylko urządzenie, które
+    /// wysłało heartbeat, a nie wszystkie tokeny użytkownika (desktop nie "ożywia" telefonu).
     /// </summary>
-    Task UpdateLastSeenAsync(Guid userId, DateTime seenAt, CancellationToken ct = default);
+    Task UpdateLastSeenByTokenAsync(Guid userId, string fcmToken, DateTime seenAt, CancellationToken ct = default);
 }
