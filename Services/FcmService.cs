@@ -108,21 +108,24 @@ public sealed class FcmService : IFcmService
             // Suppress CS0618: Message.Token is marked [Obsolete("Use Fid")] in FirebaseAdmin 3.6+,
             // ale FCM registration token (nie FID) jest nadal wymagany do push notification.
 #pragma warning disable CS0618
+            // Wysyłamy TYLKO data (bez pola Notification) — przeglądarka nie auto-wyświetla
+            // powiadomienia. Jedynym wyświetlającym jest nasz onBackgroundMessage w SW.
+            // Wysłanie Notification + data powoduje duplikat: auto-show + onBackgroundMessage.
+            var enrichedData = new Dictionary<string, string>(data)
+            {
+                ["title"] = title,
+                ["body"]  = body,
+            };
+
             var messages = batch.Select(token => new Message
             {
-                Token        = token,
-                Notification = new Notification { Title = title, Body = body },
-                Data         = data,
-                Webpush      = new WebpushConfig
+                Token  = token,
+                Data   = enrichedData,
+                Webpush = new WebpushConfig
                 {
                     FcmOptions = new WebpushFcmOptions
                     {
-                        Link = ToAbsoluteLink(data.GetValueOrDefault("actionUrl")),
-                    },
-                    Notification = new WebpushNotification
-                    {
-                        Icon  = "/pwa-192x192.png",
-                        Badge = "/pwa-64x64.png",
+                        Link = ToAbsoluteLink(enrichedData.GetValueOrDefault("actionUrl")),
                     },
                 },
             }).ToList();

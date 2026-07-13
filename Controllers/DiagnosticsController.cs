@@ -154,25 +154,21 @@ public sealed class DiagnosticsController : ControllerBase
 
         try
         {
+#pragma warning disable CS0618
             var messageId = await FirebaseMessaging.DefaultInstance.SendAsync(new Message
             {
                 Token = token,
-                Notification = new Notification
+                Data  = new Dictionary<string, string>
                 {
-                    Title = "BookingHub — test FCM",
-                    Body  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
+                    ["title"] = "BookingHub — test FCM",
+                    ["body"]  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
                 },
                 Webpush = new WebpushConfig
                 {
-                    Notification = new WebpushNotification
-                    {
-                        Title = "BookingHub — test FCM",
-                        Body  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
-                        Icon  = "/pwa-192x192.png",
-                    },
                     FcmOptions = new WebpushFcmOptions { Link = "https://bookinghub-web.pages.dev/" },
                 },
             }, ct);
+#pragma warning restore CS0618
 
             return Ok(new { sent = true, messageId, tokenPrefix = token.Substring(0, Math.Min(20, token.Length)) });
         }
