@@ -1,6 +1,7 @@
 using BookingHub.Api.Data;
 using BookingHub.Api.Infrastructure;
 using FirebaseAdmin;
+using FirebaseAdmin.Messaging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -107,5 +108,49 @@ public sealed class DiagnosticsController : ControllerBase
                 recent  = recentTokens,
             },
         });
+    }
+
+    [HttpPost("test-push/{tokenPrefix}")]
+    public async Task<IActionResult> TestPush(string tokenPrefix, CancellationToken ct)
+    {
+        if (FirebaseApp.DefaultInstance is null)
+            return BadRequest(new { error = "Firebase not initialized" });
+
+        var token = await db.UserDeviceTokens
+            .Where(t => t.Token.StartsWith(tokenPrefix))
+            .Select(t => t.Token)
+            .FirstOrDefaultAsync(ct);
+
+        if (token is null)
+            return NotFound(new { error = $"No token starting with '{tokenPrefix}'" });
+
+        try
+        {
+            var messageId = await FirebaseMessaging.DefaultInstance.SendAsync(new Message
+            {
+                Token = token,
+                Notification = new Notification
+                {
+                    Title = "BookingHub — test FCM",
+                    Body  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
+                },
+                Webpush = new WebpushConfig
+                {
+                    Notification = new WebpushNotification
+                    {
+                        Title = "BookingHub — test FCM",
+                        Body  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
+                        Icon  = "/pwa-192x192.png",
+                    },
+                    FcmOptions = new WebpushFcmOptions { Link = "/" },
+                },
+            }, ct);
+
+            return Ok(new { sent = true, messageId, tokenPrefix = token.Substring(0, Math.Min(20, token.Length)) });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { sent = false, error = ex.Message });
+        }
     }
 }
