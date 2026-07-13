@@ -152,6 +152,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EventTeamEnrollment> EventTeamEnrollments => Set<EventTeamEnrollment>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
 
+    /// <summary>Transactional Outbox — zdarzenia do wysłania przez SignalR / FCM.</summary>
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -885,11 +888,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // Jeden token = jeden user (zapobiega duplikatom przy re-rejestracji)
             e.HasIndex(t => new { t.UserId, t.Token }).IsUnique();
             e.HasIndex(t => t.UserId);
+            // Indeks na LastSeenAt — używany przez FcmService do filtrowania offline-tokenów
+            e.HasIndex(t => new { t.UserId, t.LastSeenAt });
 
             e.HasOne(t => t.User)
              .WithMany(u => u.DeviceTokens)
              .HasForeignKey(t => t.UserId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── OutboxEvent ───────────────────────────────────────────────────────
+        modelBuilder.Entity<OutboxEvent>(e =>
+        {
+            e.Property(o => o.EventType).HasMaxLength(100).IsRequired();
+            e.Property(o => o.PayloadJson).IsRequired();
+            e.Property(o => o.ErrorMessage).HasMaxLength(2000);
+
+            // Indeks do wydajnego pollingu przez OutboxProcessor
+            e.HasIndex(o => new { o.IsProcessed, o.RetryCount, o.CreatedAt });
+            // Indeks do czyszczenia starych przetworzo_nych zdarzeń
+            e.HasIndex(o => new { o.IsProcessed, o.ProcessedAt });
         });
 
         // ── Globalne wymuszenie UTC dla wszystkich pól DateTime ───────────────

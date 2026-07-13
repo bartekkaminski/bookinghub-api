@@ -1,4 +1,5 @@
 using BookingHub.Api.Data;
+using BookingHub.Api.Hubs;
 using BookingHub.Api.Infrastructure.Authorization;
 using BookingHub.Api.Middleware;
 using BookingHub.Api.Repositories;
@@ -7,6 +8,8 @@ using BookingHub.Api.Services;
 using BookingHub.Api.Services.Interfaces;
 using BookingHub.Api.Settings;
 using DotNetEnv;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +22,43 @@ if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Firebase Admin SDK (opcjonalny — graceful degradation jeśli brak konfiguracji) ──
+var firebaseKeyRaw = builder.Configuration["Firebase:ServiceAccountKeyJson"]
+    ?? Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_KEY");
+
+// Obsługa zarówno surowego JSON jak i Base64-enkodowanego JSON (potrzebne na platformach chmurowych
+// takich jak DigitalOcean, które mają problemy z wartościami zawierającymi znaki specjalne).
+var firebaseKeyJson = firebaseKeyRaw;
+if (!string.IsNullOrWhiteSpace(firebaseKeyRaw) && !firebaseKeyRaw.TrimStart().StartsWith('{'))
+{
+    try
+    {
+        firebaseKeyJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(firebaseKeyRaw));
+    }
+    catch (FormatException)
+    {
+        // Nie jest Base64 — używamy wartości bez zmian
+    }
+}
+
+if (!string.IsNullOrWhiteSpace(firebaseKeyJson))
+{
+    try
+    {
+        // Używamy FromStream zamiast FromJson (FromJson oznaczone jako deprecated w Google.Apis.Auth 1.73+)
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(firebaseKeyJson));
+        FirebaseApp.Create(new AppOptions
+        {
+            Credential = GoogleCredential.FromStream(stream),
+        });
+    }
+    catch (Exception ex)
+    {
+        // Loguj błąd, ale nie przerywaj startu — FCM jest opcjonalny
+        Console.Error.WriteLine($"[Firebase] Błąd inicjalizacji: {ex.Message}");
+    }
+}
 
 // ── Uwierzytelnianie JWT (Kinde jako OIDC provider) ──────────────────────────
 var kindeAuthority = builder.Configuration["Kinde:Authority"]
@@ -39,14 +79,28 @@ builder.Services
             ValidateAudience         = true,
             ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            NameClaimType            = "sub",   // claim 'sub' = identyfikator użytkownika
+            NameClaimType            = "sub",
         };
 
-        // Wyłącz automatyczne mapowanie claims — zachowaj oryginalne nazwy z Kinde (sub, email, given_name…)
+        // Zachowaj oryginalne nazwy claims z Kinde (sub, email, given_name…)
         options.MapInboundClaims = false;
 
         options.Events = new JwtBearerEvents
         {
+            // Obsługa tokenu JWT dla połączeń SignalR WebSocket.
+            // SignalR WebSocket nie może wysyłać nagłówka Authorization,
+            // więc klient przesyła token jako query string ?access_token=...
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    ctx.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+
             OnAuthenticationFailed = ctx =>
             {
                 var logger = ctx.HttpContext.RequestServices
@@ -58,8 +112,6 @@ builder.Services
     });
 
 // ── Polityki autoryzacji ─────────────────────────────────────────────────────
-// Autoryzacja per-rola-w-organizacji odbywa się przez [RequireOrgMembership(...)] filter.
-// Tutaj definiujemy tylko politykę globalną "zalogowany użytkownik".
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(ApiPolicies.AuthenticatedUser, policy =>
         policy.RequireAuthenticatedUser());
@@ -73,14 +125,25 @@ builder.Services.AddProblemDetails();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Enumy jako stringi (czytelne dla frontendu: "Enrolled" zamiast 0)
         options.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter());
-
-        // Zachowaj camelCase (domyślnie w .NET — ale jawnie dla pewności)
         options.JsonSerializerOptions.PropertyNamingPolicy =
             System.Text.Json.JsonNamingPolicy.CamelCase;
     });
+
+// ── SignalR ───────────────────────────────────────────────────────────────────
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+})
+.AddJsonProtocol(options =>
+{
+    // Spójność z kontrolerami — camelCase + enumy jako stringi
+    options.PayloadSerializerOptions.PropertyNamingPolicy =
+        System.Text.Json.JsonNamingPolicy.CamelCase;
+    options.PayloadSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 
 // ── OpenAPI + Scalar UI ───────────────────────────────────────────────────────
 builder.Services.AddOpenApi(options =>
@@ -135,7 +198,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials(); // wymagane dla SignalR WebSocket
     });
 });
 
@@ -184,11 +247,17 @@ builder.Services.AddScoped<IParentChildRelationRepository, ParentChildRelationRe
 builder.Services.AddScoped<IUserDeviceTokenRepository, UserDeviceTokenRepository>();
 
 // ── Services ───────────────────────────────────────────────────────────────────
+
 // Singleton — cache tokenu Kinde M2M współdzielony przez wszystkie żądania
 builder.Services.AddSingleton<IKindeManagementService, KindeManagementService>();
 
+// Singleton — Firebase Admin SDK ma własny lifecycle;
+// FcmService używa IServiceScopeFactory do tworzenia zakresów per operacja
+builder.Services.AddSingleton<IFcmService, FcmService>();
+
 // Scoped — jeden per HTTP request
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IOutboxService, OutboxService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPersonService, PersonService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
@@ -204,13 +273,16 @@ builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<ICostService, CostService>();
 
+// BackgroundService — Singleton, przetwarza OutboxEvent i wysyła przez SignalR/FCM
+builder.Services.AddHostedService<OutboxProcessor>();
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 var app = builder.Build();
 
 // ── Middleware pipeline ────────────────────────────────────────────────────────
 
-// 1. Globalna obsługa wyjątków (ServiceException → właściwy HTTP, inne → 500)
+// 1. Globalna obsługa wyjątków
 app.UseExceptionHandler();
 
 // 2. Scalar API UI + OpenAPI — tylko w Development
@@ -224,7 +296,6 @@ if (app.Environment.IsDevelopment())
         options.DefaultHttpClient = new(ScalarTarget.Http, ScalarClient.Http11);
     });
 
-    // Przekierowanie z root / → dokumentacja Scalar
     app.MapGet("/", () => Results.Redirect("/scalar/v1"))
        .ExcludeFromDescription();
 }
@@ -232,7 +303,7 @@ if (app.Environment.IsDevelopment())
 // 3. CORS (przed HTTPS redirect, aby OPTIONS preflight nie był przekierowywany)
 app.UseCors("FrontendPolicy");
 
-// 4. HTTPS redirect (tylko poza Development, żeby nie blokować CORS preflight)
+// 4. HTTPS redirect (tylko poza Development)
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -241,16 +312,19 @@ if (!app.Environment.IsDevelopment())
 // 5. JWT Authentication
 app.UseAuthentication();
 
-// 6. ActiveUser middleware — ładuje User z bazy do HttpContext.Items, blokuje dezaktywowane konta
+// 6. ActiveUser middleware — ładuje User z bazy do HttpContext.Items
 app.UseMiddleware<ActiveUserMiddleware>();
 
 // 7. Authorization
 app.UseAuthorization();
 
-// 8. Kontrolery
+// 8. Kontrolery REST
 app.MapControllers();
 
-// 9. Health check — bez wymogu autoryzacji
+// 9. SignalR Hub
+app.MapHub<AppHub>("/hubs/app");
+
+// 10. Health check — bez wymogu autoryzacji
 app.MapHealthChecks("/health").AllowAnonymous();
 
 app.Run();

@@ -42,4 +42,9 @@ public sealed class UserDeviceTokenRepository : IUserDeviceTokenRepository
     public async Task<bool> ExistsAsync(Guid userId, string token, CancellationToken ct = default)
         => await _db.UserDeviceTokens
             .AnyAsync(t => t.UserId == userId && t.Token == token, ct);
+
+    public async Task UpdateLastSeenAsync(Guid userId, DateTime seenAt, CancellationToken ct = default)
+        => await _db.UserDeviceTokens
+            .Where(t => t.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSeenAt, seenAt), ct);
 }

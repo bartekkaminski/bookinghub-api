@@ -1,0 +1,170 @@
+using BookingHub.Api.Data;
+using BookingHub.Api.Services.Interfaces;
+using FirebaseAdmin;
+using FirebaseAdmin.Messaging;
+using Microsoft.EntityFrameworkCore;
+
+namespace BookingHub.Api.Services;
+
+/// <summary>
+/// Implementacja FCM — wysyła push notifications przez Firebase Admin SDK.
+/// Singleton — dzieli instancję FirebaseApp między wszystkimi żądaniami.
+/// </summary>
+public sealed class FcmService : IFcmService
+{
+    /// <summary>
+    /// Użytkownik jest uznany za online, jeśli LastSeenAt jest nowsze niż ten próg.
+    /// Heartbeat SignalR działa co 60 s, więc 2 minuty = pewien bufor na opóźnienia.
+    /// </summary>
+    private static readonly TimeSpan OnlineThreshold = TimeSpan.FromMinutes(2);
+
+    /// <summary>FCM API ma limit 500 tokenów w jednej operacji SendEachAsync.</summary>
+    private const int FcmBatchSize = 500;
+
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<FcmService> _logger;
+
+    public FcmService(IServiceScopeFactory scopeFactory, ILogger<FcmService> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _logger       = logger;
+    }
+
+    public async Task SendToOfflineMembersAsync(
+        IEnumerable<Guid> memberIds,
+        string title,
+        string body,
+        Dictionary<string, string> data,
+        CancellationToken ct = default)
+    {
+        // Graceful degradation — Firebase może być nieskonfigurowany w dev/testach
+        if (FirebaseApp.DefaultInstance is null)
+        {
+            _logger.LogDebug("FcmService: Firebase nie jest skonfigurowany — pomijanie.");
+            return;
+        }
+
+        var memberIdList = memberIds.Distinct().ToList();
+        if (memberIdList.Count == 0) return;
+
+        using var scope = _scopeFactory.CreateScope();
+        var db           = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var onlineThreshold = DateTime.UtcNow.Subtract(OnlineThreshold);
+
+        // Resolver: memberIds → PersonIds → UserIds → offline DeviceTokens
+        // 3 małe zapytania zamiast jednego dużego JOIN-a — czytelniejsze i łatwiejsze do debugowania
+        var personIds = await db.OrganizationMembers
+            .Where(om => memberIdList.Contains(om.Id))
+            .Select(om => om.PersonId)
+            .ToListAsync(ct);
+
+        if (personIds.Count == 0) return;
+
+        var userIds = await db.Persons
+            .Where(p => personIds.Contains(p.Id) && p.UserId.HasValue)
+            .Select(p => p.UserId!.Value)
+            .ToListAsync(ct);
+
+        if (userIds.Count == 0) return;
+
+        var offlineTokens = await db.UserDeviceTokens
+            .Where(t => userIds.Contains(t.UserId)
+                        && (t.LastSeenAt == null || t.LastSeenAt < onlineThreshold))
+            .Select(t => t.Token)
+            .ToListAsync(ct);
+
+        if (offlineTokens.Count == 0) return;
+
+        _logger.LogDebug("FcmService: wysyłam do {Count} tokenów offline.", offlineTokens.Count);
+        await SendBatchAsync(offlineTokens, title, body, data, db, ct);
+    }
+
+    // ── Prywatne ─────────────────────────────────────────────────────────────
+
+    private async Task SendBatchAsync(
+        IReadOnlyList<string> tokens,
+        string title,
+        string body,
+        Dictionary<string, string> data,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var messaging = FirebaseMessaging.DefaultInstance;
+
+        foreach (var batch in tokens.Chunk(FcmBatchSize))
+        {
+            // Suppress CS0618: Message.Token is marked [Obsolete("Use Fid")] in FirebaseAdmin 3.6+,
+            // ale FCM registration token (nie FID) jest nadal wymagany do push notification.
+#pragma warning disable CS0618
+            var messages = batch.Select(token => new Message
+            {
+                Token        = token,
+                Notification = new Notification { Title = title, Body = body },
+                Data         = data,
+                Webpush      = new WebpushConfig
+                {
+                    FcmOptions = new WebpushFcmOptions
+                    {
+                        Link = data.GetValueOrDefault("actionUrl", "/"),
+                    },
+                    Notification = new WebpushNotification
+                    {
+                        Icon  = "/pwa-192x192.png",
+                        Badge = "/pwa-64x64.png",
+                    },
+                },
+            }).ToList();
+#pragma warning restore CS0618
+
+            try
+            {
+                var response = await messaging.SendEachAsync(messages, ct);
+
+                // Usuń zdezaktualizowane / nieznane tokeny (FCM reject)
+                var invalidTokens = new List<string>();
+                for (var i = 0; i < response.Responses.Count; i++)
+                {
+                    var resp = response.Responses[i];
+                    if (resp.IsSuccess) continue;
+
+                    var errorCode = resp.Exception?.MessagingErrorCode;
+                    if (errorCode is MessagingErrorCode.Unregistered or MessagingErrorCode.InvalidArgument)
+                    {
+                        invalidTokens.Add(batch[i]);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "FcmService: błąd tokenu [{Token}…]: {Error}",
+                            batch[i][..Math.Min(20, batch[i].Length)],
+                            resp.Exception?.Message);
+                    }
+                }
+
+                if (invalidTokens.Count > 0)
+                {
+                    await RemoveInvalidTokensAsync(invalidTokens, db, ct);
+                }
+
+                _logger.LogDebug(
+                    "FcmService batch: {Success}/{Total} sukces, {Invalid} nieprawidłowych.",
+                    response.SuccessCount, response.Responses.Count, invalidTokens.Count);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "FcmService: błąd SendEachAsync batch.");
+            }
+        }
+    }
+
+    private static async Task RemoveInvalidTokensAsync(
+        IReadOnlyList<string> tokens,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        await db.UserDeviceTokens
+            .Where(t => tokens.Contains(t.Token))
+            .ExecuteDeleteAsync(ct);
+    }
+}

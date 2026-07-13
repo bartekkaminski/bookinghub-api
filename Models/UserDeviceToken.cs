@@ -9,5 +9,12 @@ public class UserDeviceToken
     public DevicePlatform Platform { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Ostatni czas aktywności użytkownika — aktualizowany przez heartbeat SignalR co 60 s.
+    /// Null = użytkownik nigdy nie był online po zarejestrowaniu tokenu.
+    /// Używane przez <see cref="BookingHub.Api.Services.FcmService"/> do detekcji offline.
+    /// </summary>
+    public DateTime? LastSeenAt { get; set; }
+
     public User? User { get; set; }
 }

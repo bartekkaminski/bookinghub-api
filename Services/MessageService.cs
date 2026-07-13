@@ -1,10 +1,12 @@
 using BookingHub.Api.Dtos.Message;
+using BookingHub.Api.Hubs;
 using BookingHub.Api.Models;
 using BookingHub.Api.Repositories.Common;
 using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services.Exceptions;
 using BookingHub.Api.Services.Interfaces;
 using BookingHub.Api.Services.Mappings;
+using BookingHub.Api.Services.Realtime;
 
 namespace BookingHub.Api.Services;
 
@@ -15,15 +17,18 @@ public sealed class MessageService : IMessageService
 {
     private readonly IMessageRepository _messages;
     private readonly IOrganizationMemberRepository _members;
+    private readonly IOutboxService _outbox;
     private readonly ILogger<MessageService> _logger;
 
     public MessageService(
         IMessageRepository messages,
         IOrganizationMemberRepository members,
+        IOutboxService outbox,
         ILogger<MessageService> logger)
     {
         _messages = messages;
         _members  = members;
+        _outbox   = outbox;
         _logger   = logger;
     }
 
@@ -100,6 +105,8 @@ public sealed class MessageService : IMessageService
 
         var message = new Message
         {
+            // Jawne Guid.NewGuid() — potrzebne do zbudowania payloadu outboxa PRZED SaveChangesAsync
+            Id             = Guid.NewGuid(),
             OrganizationId = organizationId,
             SenderMemberId = senderMemberId,
             Subject        = request.Subject.Trim(),
@@ -113,6 +120,15 @@ public sealed class MessageService : IMessageService
                 IsRead            = false,
             }).ToList(),
         };
+
+        // Enqueue PRZED AddAsync — oba zostaną zapisane atomicznie przez SaveChangesAsync w AddAsync
+        _outbox.Enqueue(organizationId, HubEvents.NewMessage, new NewMessagePayload(
+            MessageId:          message.Id,
+            OrganizationId:     organizationId,
+            SenderMemberId:     senderMemberId,
+            RecipientMemberIds: recipientIds,
+            Subject:            message.Subject
+        ));
 
         var created = await _messages.AddAsync(message, ct);
         var details = await _messages.GetWithDetailsAsync(created.Id, ct);
@@ -181,8 +197,12 @@ public sealed class MessageService : IMessageService
                 .Select(r => r.RecipientMemberId)
                 .Where(id => id != senderMemberId));
 
+        var replyRecipientList = replyRecipients.Distinct().ToList();
+
         var reply = new Message
         {
+            // Jawne Guid.NewGuid() — potrzebne do zbudowania payloadu outboxa PRZED SaveChangesAsync
+            Id             = Guid.NewGuid(),
             OrganizationId = parent.OrganizationId,
             SenderMemberId = senderMemberId,
             Subject        = parent.Subject.StartsWith("Re: ", StringComparison.OrdinalIgnoreCase)
@@ -193,12 +213,22 @@ public sealed class MessageService : IMessageService
             IsAutomatic     = false,
             ParentMessageId = parentMessageId,
             RelatedEventId  = parent.RelatedEventId,
-            Recipients      = replyRecipients.Distinct().Select(memberId => new MessageRecipient
+            Recipients      = replyRecipientList.Select(memberId => new MessageRecipient
             {
                 RecipientMemberId = memberId,
                 IsRead            = false,
             }).ToList(),
         };
+
+        // Enqueue PRZED AddAsync — atomiczność zapewniona przez SaveChangesAsync w AddAsync
+        _outbox.Enqueue(parent.OrganizationId, HubEvents.NewReply, new NewReplyPayload(
+            MessageId:          reply.Id,
+            ConversationId:     parentMessageId,
+            OrganizationId:     parent.OrganizationId,
+            SenderMemberId:     senderMemberId,
+            RecipientMemberIds: replyRecipientList,
+            Subject:            reply.Subject
+        ));
 
         var created = await _messages.AddAsync(reply, ct);
         var details = await _messages.GetWithDetailsAsync(created.Id, ct);
@@ -233,6 +263,12 @@ public sealed class MessageService : IMessageService
         if (message.SenderMemberId != requestingMemberId)
             throw new ServiceException(ServiceErrorCode.Forbidden,
                 "Możesz usuwać tylko wiadomości wysłane przez siebie.");
+
+        // Enqueue PRZED DeleteAsync — atomiczność zapewniona przez SaveChangesAsync w DeleteAsync
+        _outbox.Enqueue(message.OrganizationId, HubEvents.MessageDeleted, new MessageDeletedPayload(
+            MessageId:      messageId,
+            OrganizationId: message.OrganizationId
+        ));
 
         await _messages.DeleteAsync(messageId, ct);
     }
