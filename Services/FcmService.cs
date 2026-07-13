@@ -12,12 +12,6 @@ namespace BookingHub.Api.Services;
 /// </summary>
 public sealed class FcmService : IFcmService
 {
-    /// <summary>
-    /// Użytkownik jest uznany za online, jeśli LastSeenAt jest nowsze niż ten próg.
-    /// Heartbeat SignalR działa co 60 s, więc 2 minuty = pewien bufor na opóźnienia.
-    /// </summary>
-    private static readonly TimeSpan OnlineThreshold = TimeSpan.FromMinutes(2);
-
     /// <summary>FCM API ma limit 500 tokenów w jednej operacji SendEachAsync.</summary>
     private const int FcmBatchSize = 500;
 
@@ -50,10 +44,11 @@ public sealed class FcmService : IFcmService
         using var scope = _scopeFactory.CreateScope();
         var db           = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var onlineThreshold = DateTime.UtcNow.Subtract(OnlineThreshold);
-
-        // Resolver: memberIds → PersonIds → UserIds → offline DeviceTokens
-        // 3 małe zapytania zamiast jednego dużego JOIN-a — czytelniejsze i łatwiejsze do debugowania
+        // Resolver: memberIds → PersonIds → UserIds → wszystkie DeviceTokens
+        // Celowo NIE filtrujemy po LastSeenAt — wysyłamy FCM do wszystkich tokenów odbiorców.
+        // Jeśli aplikacja jest otwarta: SDK po stronie klienta (onMessage) obsłuży to cicho.
+        // Jeśli aplikacja jest zamknięta: service worker pokaże powiadomienie.
+        // Filtrowanie "offline" powodowałoby opóźnienie ~2 min po zamknięciu aplikacji.
         var personIds = await db.OrganizationMembers
             .Where(om => memberIdList.Contains(om.Id))
             .Select(om => om.PersonId)
@@ -68,16 +63,15 @@ public sealed class FcmService : IFcmService
 
         if (userIds.Count == 0) return;
 
-        var offlineTokens = await db.UserDeviceTokens
-            .Where(t => userIds.Contains(t.UserId)
-                        && (t.LastSeenAt == null || t.LastSeenAt < onlineThreshold))
+        var allTokens = await db.UserDeviceTokens
+            .Where(t => userIds.Contains(t.UserId))
             .Select(t => t.Token)
             .ToListAsync(ct);
 
-        if (offlineTokens.Count == 0) return;
+        if (allTokens.Count == 0) return;
 
-        _logger.LogDebug("FcmService: wysyłam do {Count} tokenów offline.", offlineTokens.Count);
-        await SendBatchAsync(offlineTokens, title, body, data, db, ct);
+        _logger.LogDebug("FcmService: wysyłam FCM do {Count} tokenów.", allTokens.Count);
+        await SendBatchAsync(allTokens, title, body, data, db, ct);
     }
 
     // ── Prywatne ─────────────────────────────────────────────────────────────
