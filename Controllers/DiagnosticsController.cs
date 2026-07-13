@@ -142,7 +142,7 @@ public sealed class DiagnosticsController : ControllerBase
                         Body  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
                         Icon  = "/pwa-192x192.png",
                     },
-                    FcmOptions = new WebpushFcmOptions { Link = "/" },
+                    FcmOptions = new WebpushFcmOptions { Link = "https://bookinghub-web.pages.dev/" },
                 },
             }, ct);
 

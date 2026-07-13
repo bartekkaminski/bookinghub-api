@@ -17,11 +17,28 @@ public sealed class FcmService : IFcmService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FcmService> _logger;
+    private readonly string _frontendBaseUrl;
 
-    public FcmService(IServiceScopeFactory scopeFactory, ILogger<FcmService> logger)
+    public FcmService(IServiceScopeFactory scopeFactory, ILogger<FcmService> logger, IConfiguration configuration)
     {
-        _scopeFactory = scopeFactory;
-        _logger       = logger;
+        _scopeFactory    = scopeFactory;
+        _logger          = logger;
+        // Pobierz pierwszą skonfigurowaną domenę frontendu jako bazowy URL do linków FCM
+        var corsOrigins  = configuration["Cors__Origins"] ?? "";
+        _frontendBaseUrl = corsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                               .Select(o => o.Trim())
+                               .FirstOrDefault(o => o.StartsWith("https://")) 
+                           ?? "https://bookinghub-web.pages.dev";
+    }
+
+    /// <summary>
+    /// Zwraca pełny HTTPS URL dla linku FCM — FCM odrzuca relatywne ścieżki.
+    /// </summary>
+    private string ToAbsoluteLink(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return _frontendBaseUrl + "/";
+        if (url.StartsWith("https://") || url.StartsWith("http://")) return url;
+        return _frontendBaseUrl.TrimEnd('/') + (url.StartsWith('/') ? url : "/" + url);
     }
 
     public async Task SendToOfflineMembersAsync(
@@ -100,7 +117,7 @@ public sealed class FcmService : IFcmService
                 {
                     FcmOptions = new WebpushFcmOptions
                     {
-                        Link = data.GetValueOrDefault("actionUrl", "/"),
+                        Link = ToAbsoluteLink(data.GetValueOrDefault("actionUrl")),
                     },
                     Notification = new WebpushNotification
                     {
