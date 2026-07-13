@@ -48,7 +48,7 @@ public sealed class UserDeviceTokenRepository : IUserDeviceTokenRepository
             .Where(t => t.UserId == userId && t.Token == fcmToken)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSeenAt, seenAt), ct);
 
-    public async Task DeleteOtherPlatformTokensAsync(Guid userId, string platform, string keepToken, CancellationToken ct = default)
+    public async Task DeleteOtherPlatformTokensAsync(Guid userId, DevicePlatform platform, string keepToken, CancellationToken ct = default)
         => await _db.UserDeviceTokens
             .Where(t => t.UserId == userId && t.Platform == platform && t.Token != keepToken)
             .ExecuteDeleteAsync(ct);

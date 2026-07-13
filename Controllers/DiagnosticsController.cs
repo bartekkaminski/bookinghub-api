@@ -117,7 +117,7 @@ public sealed class DiagnosticsController : ControllerBase
     [HttpPost("cleanup-tokens")]
     public async Task<IActionResult> CleanupTokens(CancellationToken ct)
     {
-        var duplicates = await db.UserDeviceTokens
+        var duplicates = await _db.UserDeviceTokens
             .GroupBy(t => new { t.UserId, t.Platform })
             .Where(g => g.Count() > 1)
             .ToListAsync(ct);
@@ -130,11 +130,11 @@ public sealed class DiagnosticsController : ControllerBase
                 .Skip(1)
                 .ToList();
 
-            db.UserDeviceTokens.RemoveRange(toDelete);
+            _db.UserDeviceTokens.RemoveRange(toDelete);
             deleted += toDelete.Count;
         }
 
-        await db.SaveChangesAsync(ct);
+        await _db.SaveChangesAsync(ct);
         return Ok(new { deleted, message = $"Usunięto {deleted} zduplikowanych tokenów" });
     }
 

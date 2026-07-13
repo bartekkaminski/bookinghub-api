@@ -2,6 +2,7 @@ using BookingHub.Api.Models;
 
 namespace BookingHub.Api.Repositories.Interfaces;
 
+
 public interface IUserDeviceTokenRepository
 {
     Task<IReadOnlyList<UserDeviceToken>> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
@@ -13,7 +14,7 @@ public interface IUserDeviceTokenRepository
     /// Usuwa wszystkie tokeny danego użytkownika dla wskazanej platformy z wyjątkiem podanego tokenu.
     /// Wywoływane przed rejestracją nowego tokenu — zapobiega duplikatom i podwójnym powiadomieniom.
     /// </summary>
-    Task DeleteOtherPlatformTokensAsync(Guid userId, string platform, string keepToken, CancellationToken ct = default);
+    Task DeleteOtherPlatformTokensAsync(Guid userId, DevicePlatform platform, string keepToken, CancellationToken ct = default);
 
     /// <summary>
     /// Aktualizuje LastSeenAt wyłącznie dla konkretnego tokenu FCM (identyfikowanego przez token string).
