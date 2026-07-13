@@ -3,7 +3,6 @@ using FirebaseAdmin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Cors;
 
 namespace BookingHub.Api.Controllers;
 
@@ -72,7 +71,7 @@ public sealed class DiagnosticsController : ControllerBase
             {
                 t.UserId,
                 t.Platform,
-                TokenPrefix = t.Token.Length > 20 ? t.Token[..20] + "…" : t.Token,
+                TokenPrefix = t.Token.Length > 20 ? t.Token.Substring(0, 20) + "…" : t.Token,
                 t.LastSeenAt,
                 t.CreatedAt,
                 IsOnline = t.LastSeenAt != null && t.LastSeenAt >= onlineThreshold,
