@@ -94,6 +94,21 @@ public sealed class UserRepository : BaseRepository<User>, IUserRepository
             .Include(u => u.Person)
             .FirstOrDefaultAsync(u => u.ExternalId == externalId && u.AuthProvider == authProvider, cancellationToken);
 
+    /// <inheritdoc/>
+    public async Task<User?> GetByProfileCodeAsync(string profileCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileCode)) return null;
+        var normalised = profileCode.Trim().ToUpperInvariant();
+        return await _dbSet
+            .AsNoTracking()
+            .Include(u => u.Person)
+            .FirstOrDefaultAsync(u => u.ProfileCode == normalised, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> ProfileCodeExistsAsync(string profileCode, CancellationToken cancellationToken = default)
+        => await _dbSet.AnyAsync(u => u.ProfileCode == profileCode, cancellationToken);
+
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────

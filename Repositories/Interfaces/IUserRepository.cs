@@ -50,4 +50,16 @@ public interface IUserRepository : IBaseRepository<User>
     /// Używane przez middleware auth — musi działać nawet gdy konto jest „usunięte".
     /// </summary>
     Task<User?> GetByExternalIdIgnoreFiltersAsync(string externalId, string authProvider, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pobiera użytkownika wraz z profilem (Person) po unikalnym kodzie profilu.
+    /// Zwraca null jeśli nie istnieje lub kod jest pusty.
+    /// </summary>
+    Task<User?> GetByProfileCodeAsync(string profileCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sprawdza, czy podany kod profilu jest już zajęty przez innego aktywnego użytkownika.
+    /// Używane do wykrywania kolizji przed zapisem nowego kodu.
+    /// </summary>
+    Task<bool> ProfileCodeExistsAsync(string profileCode, CancellationToken cancellationToken = default);
 }

@@ -49,16 +49,24 @@ public sealed class UserService : IUserService
         var user = await _users.GetByExternalIdAsync(request.ExternalId, request.AuthProvider, ct);
         if (user is null)
         {
+            var profileCode = await GenerateUniqueProfileCodeAsync(ct);
             user = new User
             {
                 ExternalId   = request.ExternalId,
                 AuthProvider = request.AuthProvider,
                 Email        = request.Email?.Trim() ?? string.Empty,
                 IsActive     = true,
+                ProfileCode  = profileCode,
             };
             user = await _users.AddAsync(user, ct);
             _logger.LogInformation("Provisioned nowego użytkownika {UserId} dla ExternalId {ExternalId}.",
                 user.Id, request.ExternalId);
+        }
+        else if (string.IsNullOrEmpty(user.ProfileCode))
+        {
+            // Backfill: nadaj kod istniejącym użytkownikom bez kodu (np. stworzonym przed tą migracją)
+            user.ProfileCode = await GenerateUniqueProfileCodeAsync(ct);
+            await _users.UpdateAsync(user, ct);
         }
         else
         {
@@ -184,5 +192,30 @@ public sealed class UserService : IUserService
         var deleted = await _users.DeleteAsync(id, ct);
         if (!deleted)
             throw new ServiceException(ServiceErrorCode.NotFound, $"Użytkownik {id} nie istnieje.");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private async Task<string> GenerateUniqueProfileCodeAsync(CancellationToken ct, int maxAttempts = 10)
+    {
+        // Alfabet bez liter/cyfr podatnych na pomyłkę wzrokową (O≈0, I≈1, S≈5, B≈8)
+        const string Chars = "ABCDEFGHJKLMNPQRTUVWXYZ2346789";
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var code = string.Create(8, Random.Shared, (span, rng) =>
+            {
+                for (var i = 0; i < span.Length; i++)
+                    span[i] = Chars[rng.Next(Chars.Length)];
+            });
+
+            if (!await _users.ProfileCodeExistsAsync(code, ct))
+                return code;
+
+            _logger.LogWarning("Kolizja ProfileCode przy próbie {Attempt}.", attempt + 1);
+        }
+
+        throw new InvalidOperationException("Nie udało się wygenerować unikalnego ProfileCode po wielu próbach.");
     }
 }

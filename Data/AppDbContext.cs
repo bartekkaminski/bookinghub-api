@@ -190,6 +190,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(u => u.AuthProvider).HasMaxLength(50).IsRequired();
             e.Property(u => u.Email).HasMaxLength(256).IsRequired();
             e.Property(u => u.IsActive).HasDefaultValue(true);
+            e.Property(u => u.ProfileCode).HasMaxLength(8).IsRequired().HasDefaultValue(string.Empty);
 
             // Częściowe indeksy unikalne — soft-delete'owany User nie blokuje ponownego użycia
             // tego samego emaila/ExternalId przez nowy rekord
@@ -200,6 +201,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(u => u.Email)
              .IsUnique()
              .HasFilter("\"IsDeleted\" = false");
+
+            // Unikalny indeks na ProfileCode — częściowy, bo pusty string dopuszczalny dla
+            // soft-deleted userów (backfill historycznych rekordów też może być pusty chwilowo)
+            e.HasIndex(u => u.ProfileCode)
+             .IsUnique()
+             .HasFilter("\"IsDeleted\" = false AND \"ProfileCode\" != ''");
         });
 
         // ── Person ───────────────────────────────────────────────────────────

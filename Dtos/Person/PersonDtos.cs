@@ -31,6 +31,12 @@ public sealed class PersonDetailResponse
     public bool HasAccount { get; set; }
     public Guid? UserId { get; set; }
     public string? Email { get; set; }
+    /// <summary>
+    /// Unikalny kod profilu widoczny tylko właścicielowi konta.
+    /// Służy do bezpiecznego dodawania osoby do organizacji przez admina (bez ujawniania emaila).
+    /// Null gdy osoba nie ma konta logowania.
+    /// </summary>
+    public string? ProfileCode { get; set; }
     public IReadOnlyList<PersonMembershipInfo> Memberships { get; set; } = [];
     public IReadOnlyList<PersonSummaryResponse> Children { get; set; } = [];
     public IReadOnlyList<PersonSummaryResponse> Parents { get; set; } = [];

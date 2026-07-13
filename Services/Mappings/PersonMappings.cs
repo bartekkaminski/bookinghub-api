@@ -27,6 +27,7 @@ internal static class PersonMappings
         HasAccount  = person.UserId is not null,
         UserId      = person.UserId,
         Email       = person.User?.Email,
+        ProfileCode = string.IsNullOrEmpty(person.User?.ProfileCode) ? null : person.User.ProfileCode,
         Memberships = person.Memberships.Select(m => new PersonMembershipInfo
         {
             MemberId         = m.Id,

@@ -21,6 +21,13 @@ public class User : BaseEntity
     /// <summary>Preferowany język UI: "pl" lub "en". Domyślnie "pl".</summary>
     public string PreferredLanguage { get; set; } = "pl";
 
+    /// <summary>
+    /// Unikalny kod profilu (8 znaków, A-Z 2-9) wyświetlany użytkownikowi.
+    /// Admin podaje ten kod przy dodawaniu istniejącej osoby do organizacji
+    /// — zamiast emaila, aby zapobiec enumeracji kont.
+    /// </summary>
+    public string ProfileCode { get; set; } = string.Empty;
+
     public Person? Person { get; set; }
     public ICollection<UserDeviceToken> DeviceTokens { get; set; } = new List<UserDeviceToken>();
 }

@@ -139,6 +139,18 @@ public sealed class AssignTrainerToParticipantRequest
 }
 
 /// <summary>
+/// Wynik wyszukiwania osoby po kodzie profilu — zwracany przez GET /members/find-by-code.
+/// Celowo nie zawiera adresu e-mail ani innych danych osobowych poza imieniem i nazwiskiem.
+/// </summary>
+public sealed class MemberLookupResponse
+{
+    public Guid PersonId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    /// <summary>True gdy osoba jest już aktywnym członkiem tej organizacji.</summary>
+    public bool IsAlreadyMember { get; set; }
+}
+
+/// <summary>
 /// Dane do tworzenia pełnego użytkownika przez admina:
 /// zakłada konto Kinde + Person + OrganizationMember w jednym kroku.
 /// </summary>

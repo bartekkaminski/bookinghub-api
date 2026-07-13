@@ -122,6 +122,24 @@ public sealed class MembersController : BookingHubControllerBase
     }
 
     /// <summary>
+    /// Wyszukuje osobę po kodzie profilu i sprawdza, czy jest już członkiem organizacji.
+    /// Celowo zwraca tylko imię/nazwisko — bez e-maila ani innych danych osobowych,
+    /// aby zapobiec enumeracji kont (security by design).
+    /// </summary>
+    [HttpGet("find-by-code")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(typeof(MemberLookupResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MemberLookupResponse>> FindByCode(
+        Guid organizationId, [FromQuery] string code, CancellationToken ct)
+    {
+        var result = await _members.FindByCodeAsync(organizationId, code, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Dodaje istniejącą osobę jako nowego członka organizacji.
     /// </summary>
     [HttpPost("add-existing")]

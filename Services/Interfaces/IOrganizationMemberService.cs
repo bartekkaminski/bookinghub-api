@@ -61,4 +61,11 @@ public interface IOrganizationMemberService
 
     /// <summary>Usuwa członkostwo (soft delete).</summary>
     Task DeleteAsync(Guid memberId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Wyszukuje osobę po kodzie profilu i sprawdza, czy jest już członkiem organizacji.
+    /// Rzuca <see cref="ServiceException"/> z kodem <see cref="ServiceErrorCode.NotFound"/>
+    /// gdy nie istnieje użytkownik z takim kodem.
+    /// </summary>
+    Task<MemberLookupResponse> FindByCodeAsync(Guid organizationId, string profileCode, CancellationToken ct = default);
 }

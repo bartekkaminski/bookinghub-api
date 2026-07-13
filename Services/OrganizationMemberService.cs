@@ -335,4 +335,31 @@ public sealed class OrganizationMemberService : IOrganizationMemberService
         if (!deleted)
             throw new ServiceException(ServiceErrorCode.NotFound, $"Członek {memberId} nie istnieje.");
     }
+
+    /// <inheritdoc/>
+    public async Task<MemberLookupResponse> FindByCodeAsync(Guid organizationId, string profileCode, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileCode))
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Kod profilu jest wymagany.", nameof(profileCode));
+
+        var user = await _users.GetByProfileCodeAsync(profileCode.Trim().ToUpperInvariant(), ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound,
+                "Nie znaleziono osoby z podanym kodem profilu.");
+
+        if (user.Person is null)
+            throw new ServiceException(ServiceErrorCode.NotFound,
+                "Nie znaleziono osoby z podanym kodem profilu.");
+
+        var isAlreadyMember = await _members.IsMemberAsync(user.Person.Id, organizationId, ct);
+
+        var fullName = $"{user.Person.FirstName} {user.Person.LastName}".Trim();
+
+        return new MemberLookupResponse
+        {
+            PersonId       = user.Person.Id,
+            FullName       = string.IsNullOrEmpty(fullName) ? "—" : fullName,
+            IsAlreadyMember = isAlreadyMember,
+        };
+    }
 }

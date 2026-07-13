@@ -17,6 +17,7 @@ public sealed class PersonRepository : BaseRepository<Person>, IPersonRepository
     public async Task<Person?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
         => await _dbSet
             .AsNoTracking()
+            .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 
     /// <inheritdoc/>

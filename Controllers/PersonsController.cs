@@ -1,5 +1,6 @@
 using BookingHub.Api.Dtos.Person;
 using BookingHub.Api.Infrastructure.Controllers;
+using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services.Exceptions;
 using BookingHub.Api.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -11,21 +12,24 @@ namespace BookingHub.Api.Controllers;
 /// Person istnieje niezależnie od konta logowania — np. dziecko może nie mieć konta.
 ///
 ///   GET    /api/persons/me                        — własny profil zalogowanego
-///   GET    /api/persons/{personId}                — profil osoby (tylko własny lub admin)
-///   PUT    /api/persons/{personId}                — edycja profilu (tylko własny lub admin)
+///   GET    /api/persons/{personId}                — profil osoby (własny lub admin)
+///   PUT    /api/persons/{personId}                — edycja profilu (własny lub admin)
 ///   DELETE /api/persons/{personId}                — usunięcie (admin)
 ///
-///   POST   /api/persons/{personId}/children       — dodaj relację rodzic–dziecko
-///   DELETE /api/persons/{personId}/children/{childPersonId} — usuń relację
+///   GET    /api/persons/{personId}/children       — lista dzieci (własna lub admin)
+///   POST   /api/persons/{personId}/children       — dodaj relację rodzic–dziecko (własna lub admin)
+///   DELETE /api/persons/{personId}/children/{childPersonId} — usuń relację (własna lub admin)
 /// </summary>
 [Route("api/persons")]
 public sealed class PersonsController : BookingHubControllerBase
 {
     private readonly IPersonService _persons;
+    private readonly IOrganizationMemberRepository _memberRepo;
 
-    public PersonsController(IPersonService persons)
+    public PersonsController(IPersonService persons, IOrganizationMemberRepository memberRepo)
     {
-        _persons = persons;
+        _persons   = persons;
+        _memberRepo = memberRepo;
     }
 
     /// <summary>
@@ -47,7 +51,7 @@ public sealed class PersonsController : BookingHubControllerBase
 
     /// <summary>
     /// Profil osoby po Id.
-    /// Zalogowany użytkownik może pobrać tylko swój profil; wymagane wywołanie z poziomu admina org.
+    /// Dostęp: własny profil lub admin w organizacji, do której osoba należy.
     /// </summary>
     [HttpGet("{personId:guid}")]
     [ProducesResponseType(typeof(PersonDetailResponse), StatusCodes.Status200OK)]
@@ -55,18 +59,20 @@ public sealed class PersonsController : BookingHubControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PersonDetailResponse>> GetById(Guid personId, CancellationToken ct)
     {
-        var myPersonId = CurrentUser.PersonId;
-        if (myPersonId != personId)
-            throw new ServiceException(ServiceErrorCode.Forbidden,
-                "Możesz pobierać tylko własny profil.");
-
+        await RequireAccessToPersonAsync(personId, ct);
         var person = await _persons.GetByIdAsync(personId, ct);
+
+        // Kod profilu jest widoczny wyłącznie dla właściciela konta —
+        // admin oglądający cudzy profil nie powinien go widzieć (zapobiega social engineering)
+        if (CurrentUser.PersonId != personId)
+            person.ProfileCode = null;
+
         return Ok(person);
     }
 
     /// <summary>
     /// Aktualizuje dane profilu osoby (imię, nazwisko, data urodzenia, zdjęcie).
-    /// Zalogowany użytkownik może edytować tylko swój profil.
+    /// Dostęp: własny profil lub admin.
     /// </summary>
     [HttpPut("{personId:guid}")]
     [ProducesResponseType(typeof(PersonDetailResponse), StatusCodes.Status200OK)]
@@ -76,11 +82,7 @@ public sealed class PersonsController : BookingHubControllerBase
     public async Task<ActionResult<PersonDetailResponse>> Update(
         Guid personId, [FromBody] UpdatePersonRequest request, CancellationToken ct)
     {
-        var myPersonId = CurrentUser.PersonId;
-        if (myPersonId != personId)
-            throw new ServiceException(ServiceErrorCode.Forbidden,
-                "Możesz edytować tylko własny profil.");
-
+        await RequireAccessToPersonAsync(personId, ct);
         var updated = await _persons.UpdateAsync(personId, request, ct);
         return Ok(updated);
     }
@@ -89,6 +91,7 @@ public sealed class PersonsController : BookingHubControllerBase
 
     /// <summary>
     /// Pobiera listę dzieci danej osoby.
+    /// Dostęp: własny profil lub admin.
     /// </summary>
     [HttpGet("{personId:guid}/children")]
     [ProducesResponseType(typeof(IReadOnlyList<PersonSummaryResponse>), StatusCodes.Status200OK)]
@@ -96,18 +99,14 @@ public sealed class PersonsController : BookingHubControllerBase
     public async Task<ActionResult<IReadOnlyList<PersonSummaryResponse>>> GetChildren(
         Guid personId, CancellationToken ct)
     {
-        var myPersonId = CurrentUser.PersonId;
-        if (myPersonId != personId)
-            throw new ServiceException(ServiceErrorCode.Forbidden,
-                "Możesz przeglądać tylko własne relacje.");
-
+        await RequireAccessToPersonAsync(personId, ct);
         var children = await _persons.GetChildrenAsync(personId, ct);
         return Ok(children);
     }
 
     /// <summary>
     /// Tworzy relację rodzic–dziecko.
-    /// Zalogowany użytkownik może dodać powiązanie tylko do swojego profilu (jako rodzic).
+    /// Dostęp: własny profil (jako rodzic) lub admin.
     /// </summary>
     [HttpPost("{personId:guid}/children")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -118,17 +117,14 @@ public sealed class PersonsController : BookingHubControllerBase
     public async Task<IActionResult> AddChild(
         Guid personId, [FromBody] AddParentChildRequest request, CancellationToken ct)
     {
-        var myPersonId = CurrentUser.PersonId;
-        if (myPersonId != personId)
-            throw new ServiceException(ServiceErrorCode.Forbidden,
-                "Możesz zarządzać tylko relacjami własnego profilu.");
-
+        await RequireAccessToPersonAsync(personId, ct);
         await _persons.AddParentChildRelationAsync(personId, request.ChildPersonId, ct);
         return NoContent();
     }
 
     /// <summary>
     /// Usuwa relację rodzic–dziecko.
+    /// Dostęp: własny profil (jako rodzic) lub admin.
     /// </summary>
     [HttpDelete("{personId:guid}/children/{childPersonId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -137,12 +133,35 @@ public sealed class PersonsController : BookingHubControllerBase
     public async Task<IActionResult> RemoveChild(
         Guid personId, Guid childPersonId, CancellationToken ct)
     {
-        var myPersonId = CurrentUser.PersonId;
-        if (myPersonId != personId)
-            throw new ServiceException(ServiceErrorCode.Forbidden,
-                "Możesz zarządzać tylko relacjami własnego profilu.");
-
+        await RequireAccessToPersonAsync(personId, ct);
         await _persons.RemoveParentChildRelationAsync(personId, childPersonId, ct);
         return NoContent();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Weryfikuje czy zalogowany użytkownik ma prawo do operacji na danej osobie.
+    /// Dozwolone: własny profil LUB admin w co najmniej jednej wspólnej organizacji.
+    /// </summary>
+    private async Task RequireAccessToPersonAsync(Guid targetPersonId, CancellationToken ct)
+    {
+        var myPersonId = CurrentUser.PersonId;
+
+        // Własny profil — zawsze OK
+        if (myPersonId == targetPersonId)
+            return;
+
+        // Sprawdź czy current user jest adminem w jakiejkolwiek organizacji,
+        // do której należy też docelowa osoba
+        var targetMemberships = await _memberRepo.GetByPersonIdAsync(targetPersonId, ct);
+        foreach (var membership in targetMemberships)
+        {
+            if (await CurrentUser.IsAdminAsync(membership.OrganizationId, ct))
+                return;
+        }
+
+        throw new ServiceException(ServiceErrorCode.Forbidden,
+            "Brak dostępu. Wymagany własny profil lub rola Administratora w organizacji tej osoby.");
     }
 }

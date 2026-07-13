@@ -61,6 +61,9 @@ public sealed class TeamRepository : BaseRepository<Team>, ITeamRepository
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
+            .Include(t => t.Members)
+                .ThenInclude(tm => tm.OrganizationMember)
+                    .ThenInclude(m => m.Person)
             .Skip((filter.Page - 1) * filter.PageSize)
             .Take(filter.PageSize)
             .ToListAsync(cancellationToken);
