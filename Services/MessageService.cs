@@ -121,13 +121,18 @@ public sealed class MessageService : IMessageService
             }).ToList(),
         };
 
+        var senderMember = await _members.GetWithDetailsAsync(senderMemberId, ct);
+        var senderName   = ResolveName(senderMember);
+
         // Enqueue PRZED AddAsync — oba zostaną zapisane atomicznie przez SaveChangesAsync w AddAsync
         _outbox.Enqueue(organizationId, HubEvents.NewMessage, new NewMessagePayload(
             MessageId:          message.Id,
             OrganizationId:     organizationId,
             SenderMemberId:     senderMemberId,
             RecipientMemberIds: recipientIds,
-            Subject:            message.Subject
+            Subject:            message.Subject,
+            SenderName:         senderName,
+            Preview:            BuildPreview(message.Body)
         ));
 
         var created = await _messages.AddAsync(message, ct);
@@ -220,6 +225,9 @@ public sealed class MessageService : IMessageService
             }).ToList(),
         };
 
+        var replySender     = await _members.GetWithDetailsAsync(senderMemberId, ct);
+        var replySenderName = ResolveName(replySender);
+
         // Enqueue PRZED AddAsync — atomiczność zapewniona przez SaveChangesAsync w AddAsync
         _outbox.Enqueue(parent.OrganizationId, HubEvents.NewReply, new NewReplyPayload(
             MessageId:          reply.Id,
@@ -227,7 +235,9 @@ public sealed class MessageService : IMessageService
             OrganizationId:     parent.OrganizationId,
             SenderMemberId:     senderMemberId,
             RecipientMemberIds: replyRecipientList,
-            Subject:            reply.Subject
+            Subject:            reply.Subject,
+            SenderName:         replySenderName,
+            Preview:            BuildPreview(request.Body)
         ));
 
         var created = await _messages.AddAsync(reply, ct);
@@ -271,5 +281,24 @@ public sealed class MessageService : IMessageService
         ));
 
         await _messages.DeleteAsync(messageId, ct);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static string ResolveName(OrganizationMember? member)
+    {
+        if (member is null) return "Nieznany nadawca";
+        if (!string.IsNullOrWhiteSpace(member.DisplayName)) return member.DisplayName;
+        var first = member.Person?.FirstName ?? "";
+        var last  = member.Person?.LastName  ?? "";
+        var full  = $"{first} {last}".Trim();
+        return string.IsNullOrWhiteSpace(full) ? "Nieznany nadawca" : full;
+    }
+
+    private static string BuildPreview(string? body, int maxLength = 100)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "";
+        var stripped = body.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return stripped.Length <= maxLength ? stripped : stripped[..maxLength] + "…";
     }
 }

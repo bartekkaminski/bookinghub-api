@@ -6,7 +6,9 @@ public sealed record NewMessagePayload(
     Guid OrganizationId,
     Guid SenderMemberId,
     IReadOnlyList<Guid> RecipientMemberIds,
-    string Subject
+    string Subject,
+    string SenderName,
+    string Preview
 );
 
 /// <summary>Payload zdarzenia nowej odpowiedzi w istniejącym wątku.</summary>
@@ -16,7 +18,9 @@ public sealed record NewReplyPayload(
     Guid OrganizationId,
     Guid SenderMemberId,
     IReadOnlyList<Guid> RecipientMemberIds,
-    string Subject
+    string Subject,
+    string SenderName,
+    string Preview
 );
 
 /// <summary>Payload zdarzenia usunięcia wiadomości.</summary>

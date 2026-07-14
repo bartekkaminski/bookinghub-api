@@ -152,14 +152,15 @@ public sealed class OutboxProcessor : BackgroundService
                 // FCM — do offline-odbiorców
                 await _fcmService.SendToOfflineMembersAsync(
                     payload.RecipientMemberIds,
-                    title: payload.Subject,
-                    body:  "Nowa wiadomość",
+                    title: payload.SenderName,
+                    body:  string.IsNullOrWhiteSpace(payload.Preview) ? payload.Subject : payload.Preview,
                     data: new Dictionary<string, string>
                     {
                         ["eventType"]      = HubEvents.NewMessage,
                         ["messageId"]      = payload.MessageId.ToString(),
                         ["organizationId"] = payload.OrganizationId.ToString(),
                         ["actionUrl"]      = $"/app/org/{payload.OrganizationId}/messages/{payload.MessageId}",
+                        ["subject"]        = payload.Subject,
                     },
                     ct);
                 break;
@@ -176,8 +177,8 @@ public sealed class OutboxProcessor : BackgroundService
 
                 await _fcmService.SendToOfflineMembersAsync(
                     payload.RecipientMemberIds,
-                    title: payload.Subject,
-                    body:  "Nowa odpowiedź",
+                    title: payload.SenderName,
+                    body:  string.IsNullOrWhiteSpace(payload.Preview) ? payload.Subject : payload.Preview,
                     data: new Dictionary<string, string>
                     {
                         ["eventType"]      = HubEvents.NewReply,
@@ -185,6 +186,7 @@ public sealed class OutboxProcessor : BackgroundService
                         ["conversationId"] = payload.ConversationId.ToString(),
                         ["organizationId"] = payload.OrganizationId.ToString(),
                         ["actionUrl"]      = $"/app/org/{payload.OrganizationId}/messages/{payload.ConversationId}",
+                        ["subject"]        = payload.Subject,
                     },
                     ct);
                 break;
