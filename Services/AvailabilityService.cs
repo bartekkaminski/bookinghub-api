@@ -1,4 +1,5 @@
 using BookingHub.Api.Dtos.Availability;
+using BookingHub.Api.Models;
 using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services.Exceptions;
 using BookingHub.Api.Services.Interfaces;
@@ -13,13 +14,16 @@ public sealed class AvailabilityService : IAvailabilityService
 {
     private readonly IMemberAvailabilityRepository _availability;
     private readonly IOrganizationMemberRepository _members;
+    private readonly IEventRepository              _events;
 
     public AvailabilityService(
         IMemberAvailabilityRepository availability,
-        IOrganizationMemberRepository members)
+        IOrganizationMemberRepository members,
+        IEventRepository events)
     {
         _availability = availability;
         _members      = members;
+        _events       = events;
     }
 
     /// <inheritdoc/>
@@ -116,14 +120,164 @@ public sealed class AvailabilityService : IAvailabilityService
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<MemberScheduleResponse>> GetMemberScheduleAsync(
+        Guid memberId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var fromDt = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var toDt   = to.ToDateTime(TimeOnly.MaxValue,  DateTimeKind.Utc);
+
+        // ── 1. Wszystkie sloty jednorazowo — brak N+1 ─────────────────────────
+        // _availability.GetByMemberAsync zwraca IReadOnlyList<MemberAvailability> (encje)
+        var allSlots = await _availability.GetByMemberAsync(memberId, ct);
+
+        // ── 2. Zajęcia obu ról, unia przez Id, bez Cancelled ──────────────────
+        // GetCalendarForMemberAsync: individual + team enrollments (już z filtrem != Cancelled)
+        // GetByTrainerAsync: zajęcia gdzie członek jest trenerem
+        var participantEvents = await _events.GetCalendarForMemberAsync(memberId, fromDt, toDt, ct);
+        var trainerEvents     = await _events.GetByTrainerAsync(memberId, fromDt, toDt, ct);
+
+        var allEvents = participantEvents
+            .Union(trainerEvents, EventIdComparer.Instance)
+            .Where(e => e.Status != EventStatus.Cancelled)
+            .ToList();
+
+        // ── 3. Per dzień: filtr slotów w pamięci + scalenie z zajęciami ───────
+        var result = new List<MemberScheduleResponse>();
+
+        for (var day = from; day <= to; day = day.AddDays(1))
+        {
+            var activeSlots = allSlots
+                .Where(s =>
+                    s.DayOfWeek == day.DayOfWeek &&
+                    (s.ValidFrom == null || s.ValidFrom <= day) &&
+                    (s.ValidTo   == null || s.ValidTo   >= day))
+                .OrderBy(s => s.TimeFrom)
+                .ToList();
+
+            if (activeSlots.Count == 0) continue;
+
+            var dayStartUtc = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            var dayEndUtc   = day.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+            // Zajęcia nachodzące na ten dzień (sprawdzenie nakładania zakresów)
+            var dayBusy = allEvents
+                .Where(e => e.StartTime < dayEndUtc && e.EndTime > dayStartUtc)
+                .Select(e =>
+                {
+                    var bFrom = TimeOnly.FromTimeSpan(e.StartTime.TimeOfDay);
+                    var bTo   = TimeOnly.FromTimeSpan(e.EndTime.TimeOfDay);
+
+                    // Zajęcie zaczyna się poprzedniego dnia (UTC) — clamp do 00:00
+                    if (e.StartTime.Date < dayStartUtc.Date) bFrom = TimeOnly.MinValue;
+                    // Zajęcie kończy się następnego dnia (UTC) — clamp do 23:59:59
+                    if (e.EndTime.Date > dayStartUtc.Date)   bTo   = TimeOnly.MaxValue;
+
+                    return new BusyInterval(bFrom, bTo, e);
+                })
+                .OrderBy(b => b.From)
+                .ToList();
+
+            var blocks = new List<ScheduleBlock>();
+            foreach (var slot in activeSlots)
+            {
+                var overlapping = dayBusy
+                    .Where(b => b.From < slot.TimeTo && b.To > slot.TimeFrom)
+                    .ToList();
+
+                blocks.AddRange(MergeSlotWithBusy(slot.Id, slot.TimeFrom, slot.TimeTo, overlapping));
+            }
+
+            if (blocks.Count > 0)
+                result.Add(new MemberScheduleResponse { Date = day, Blocks = blocks });
+        }
+
+        return result;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Scala slot dostępności z posortowaną listą zajętych interwałów.
+    /// Kursor przesuwa się do max(cursor, bTo), obsługując nakładające się zajęcia.
+    /// </summary>
+    private static IEnumerable<ScheduleBlock> MergeSlotWithBusy(
+        Guid slotId, TimeOnly slotFrom, TimeOnly slotTo,
+        IReadOnlyList<BusyInterval> busy)
+    {
+        var cursor = slotFrom;
+
+        foreach (var b in busy)
+        {
+            var bFrom = b.From < slotFrom ? slotFrom : b.From;
+            var bTo   = b.To   > slotTo   ? slotTo   : b.To;
+
+            if (bTo <= cursor) continue;
+
+            if (bFrom > cursor)
+            {
+                yield return new ScheduleBlock
+                {
+                    TimeFrom = cursor,
+                    TimeTo   = bFrom,
+                    Type     = ScheduleBlockType.Available,
+                    SlotId   = slotId,
+                };
+            }
+
+            var busyStart = bFrom < cursor ? cursor : bFrom;
+            if (busyStart < bTo)
+            {
+                yield return new ScheduleBlock
+                {
+                    TimeFrom = busyStart,
+                    TimeTo   = bTo,
+                    Type     = ScheduleBlockType.Busy,
+                    SlotId   = slotId,
+                    Event    = new ScheduleEventInfo
+                    {
+                        EventId   = b.Event.Id,
+                        Title     = b.Event.Title,
+                        Color     = b.Event.Color ?? b.Event.Group?.Color,
+                        EventType = b.Event.EventType.ToString(),
+                    },
+                };
+            }
+
+            if (bTo > cursor) cursor = bTo;
+        }
+
+        if (cursor < slotTo)
+            yield return new ScheduleBlock
+            {
+                TimeFrom = cursor,
+                TimeTo   = slotTo,
+                Type     = ScheduleBlockType.Available,
+                SlotId   = slotId,
+            };
+    }
+
+    private record BusyInterval(TimeOnly From, TimeOnly To, Event Event);
+
+    /// <summary>
+    /// Comparer eventów po Id — deduplikacja unii GetCalendarForMemberAsync
+    /// i GetByTrainerAsync (gdy członek jest jednocześnie trenerem i uczestnikiem eventu).
+    /// </summary>
+    private sealed class EventIdComparer : IEqualityComparer<Event>
+    {
+        public static readonly EventIdComparer Instance = new();
+        public bool Equals(Event? x, Event? y) => x?.Id == y?.Id;
+        public int GetHashCode(Event obj)       => obj.Id.GetHashCode();
+    }
+
     private static void ValidateSlot(TimeOnly timeFrom, TimeOnly timeTo, DateOnly? validFrom, DateOnly? validTo)
     {
         if (timeFrom >= timeTo)
             throw new ServiceException(ServiceErrorCode.ValidationError,
                 "TimeFrom musi być wcześniejsze niż TimeTo.", nameof(timeFrom));
 
-        if (validFrom.HasValue && validTo.HasValue && validFrom.Value >= validTo.Value)
+        if (validFrom.HasValue && validTo.HasValue && validFrom.Value > validTo.Value)
             throw new ServiceException(ServiceErrorCode.InvalidRateDateRange,
-                "ValidFrom musi być wcześniejsze niż ValidTo.");
+                "ValidFrom nie może być późniejsze niż ValidTo.");
     }
 }

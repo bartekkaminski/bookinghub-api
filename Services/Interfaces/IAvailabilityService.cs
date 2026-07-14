@@ -29,4 +29,13 @@ public interface IAvailabilityService
     /// Używane przy planowaniu zajęć do weryfikacji dostępności trenerów.
     /// </summary>
     Task<AvailabilityCheckResponse> CheckAvailabilityAsync(IReadOnlyList<Guid> memberIds, DateTime from, DateTime to, CancellationToken ct = default);
+
+    /// <summary>
+    /// Zwraca scalony grafik członka (sloty dostępności + zajęcia) dla podanego zakresu dat.
+    /// Zwraca TYLKO bloki Available i Busy.
+    /// Obszary poza dostępnością (Unavailable) są pomijane — frontend renderuje je jako puste tło.
+    /// Typowy zakres: 1 dzień (widok dnia). Maksymalny zakres: 90 dni.
+    /// </summary>
+    Task<IReadOnlyList<MemberScheduleResponse>> GetMemberScheduleAsync(
+        Guid memberId, DateOnly from, DateOnly to, CancellationToken ct = default);
 }

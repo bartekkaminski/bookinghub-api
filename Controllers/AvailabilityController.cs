@@ -14,6 +14,7 @@ namespace BookingHub.Api.Controllers;
 /// Trasa bazowa: /api/organizations/{organizationId}/members/{memberId}/availability
 ///
 ///   GET /                — wszystkie sloty danego członka (Admin, Manager, Trainer lub właściciel)
+///   GET /schedule        — scalony grafik członka (Admin, Manager, Trainer lub właściciel)
 ///   GET /check           — sprawdzenie dostępności wielu osób (Admin, Manager, Trainer)
 ///   POST /               — dodaj slot (Admin, Manager lub właściciel)
 ///   PUT  /{slotId}       — edytuj slot (Admin, Manager lub właściciel)
@@ -101,6 +102,34 @@ public sealed class AvailabilityController : BookingHubControllerBase
 
         await _availability.DeleteSlotAsync(slotId, ct);
         return NoContent();
+    }
+
+    // ── Scalony grafik ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Scalony grafik członka: sloty dostępności + zajęcia → bloki Available/Busy.
+    /// Obszary poza slotami dostępności są pomijane w odpowiedzi (puste tło siatki).
+    /// Typowy zakres: 1 dzień (widok dnia). Maksymalny zakres: 90 dni.
+    /// Zwraca pustą listę gdy brak slotów — nigdy 404 z powodu braku dostępności.
+    /// </summary>
+    [HttpGet("schedule")]
+    [ProducesResponseType(typeof(IReadOnlyList<MemberScheduleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<MemberScheduleResponse>>> GetSchedule(
+        Guid organizationId, Guid memberId,
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to,
+        CancellationToken ct)
+    {
+        await EnsureCanAccessMemberDataAsync(organizationId, memberId, ct);
+
+        if (to < from || to.DayNumber - from.DayNumber > 90)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Zakres dat musi być ≤ 90 dni i 'from' ≤ 'to'.", "from");
+
+        var result = await _availability.GetMemberScheduleAsync(memberId, from, to, ct);
+        return Ok(result);
     }
 
     // ── Sprawdzenie dostępności wielu osób ────────────────────────────────────
