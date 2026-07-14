@@ -108,23 +108,39 @@ public sealed class FcmService : IFcmService
             // Suppress CS0618: Message.Token is marked [Obsolete("Use Fid")] in FirebaseAdmin 3.6+,
             // ale FCM registration token (nie FID) jest nadal wymagany do push notification.
 #pragma warning disable CS0618
-            // Wysyłamy TYLKO data (bez pola Notification) — przeglądarka nie auto-wyświetla
-            // powiadomienia. Jedynym wyświetlającym jest nasz onBackgroundMessage w SW.
-            // Wysłanie Notification + data powoduje duplikat: auto-show + onBackgroundMessage.
+            // WebpushConfig.Notification → przeglądarka auto-wyświetla 1 powiadomienie systemowe.
+            // onBackgroundMessage w SW zwraca bez showNotification() → brak duplikatu.
+            // Message.Data → dostępne w onMessage() gdy aplikacja jest na pierwszym planie (toast).
             var enrichedData = new Dictionary<string, string>(data)
             {
                 ["title"] = title,
                 ["body"]  = body,
             };
 
-            // Brak WebpushFcmOptions.Link — gdy Link jest ustawiony bez Notification,
-            // Firebase automatycznie generuje powiadomienie z domyślną nazwą aplikacji,
-            // co nadpisuje treść przed wywołaniem onBackgroundMessage w SW.
-            // Nawigacja po kliknięciu obsługiwana jest przez SW notificationclick (actionUrl w data).
+            var actionUrl = enrichedData.GetValueOrDefault("actionUrl", "/");
+            var messageId = enrichedData.GetValueOrDefault("messageId", "bookinghub-notification");
+
             var messages = batch.Select(token => new Message
             {
-                Token  = token,
-                Data   = enrichedData,
+                Token = token,
+                Data  = enrichedData,
+                Webpush = new WebpushConfig
+                {
+                    Notification = new WebpushNotification
+                    {
+                        Title    = title,
+                        Body     = body,
+                        Icon     = "https://bookinghub-web.pages.dev/pwa-192x192.png",
+                        Badge    = "https://bookinghub-web.pages.dev/pwa-64x64.png",
+                        Tag      = messageId,
+                        Renotify = true,
+                        CustomData = new Dictionary<string, object>
+                        {
+                            ["actionUrl"] = actionUrl,
+                            ["messageId"] = messageId,
+                        },
+                    },
+                },
             }).ToList();
 #pragma warning restore CS0618
 

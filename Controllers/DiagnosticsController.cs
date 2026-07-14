@@ -164,6 +164,19 @@ public sealed class DiagnosticsController : ControllerBase
                     ["body"]      = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC",
                     ["actionUrl"] = "/",
                 },
+                Webpush = new WebpushConfig
+                {
+                    Notification = new WebpushNotification
+                    {
+                        Title    = "BookingHub — test FCM",
+                        Body     = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC",
+                        Icon     = "https://bookinghub-web.pages.dev/pwa-192x192.png",
+                        Badge    = "https://bookinghub-web.pages.dev/pwa-64x64.png",
+                        Tag      = "bookinghub-test",
+                        Renotify = true,
+                        CustomData = new Dictionary<string, object> { ["actionUrl"] = "/" },
+                    },
+                },
             }, ct);
 #pragma warning restore CS0618
 
