@@ -153,7 +153,7 @@ public sealed class OutboxProcessor : BackgroundService
                 await _fcmService.SendToOfflineMembersAsync(
                     payload.RecipientMemberIds,
                     title: payload.SenderName,
-                    body:  string.IsNullOrWhiteSpace(payload.Preview) ? payload.Subject : payload.Preview,
+                    body:  BuildNotificationBody(payload.Subject, payload.Preview),
                     data: new Dictionary<string, string>
                     {
                         ["eventType"]      = HubEvents.NewMessage,
@@ -178,7 +178,7 @@ public sealed class OutboxProcessor : BackgroundService
                 await _fcmService.SendToOfflineMembersAsync(
                     payload.RecipientMemberIds,
                     title: payload.SenderName,
-                    body:  string.IsNullOrWhiteSpace(payload.Preview) ? payload.Subject : payload.Preview,
+                    body:  BuildNotificationBody(payload.Subject, payload.Preview),
                     data: new Dictionary<string, string>
                     {
                         ["eventType"]      = HubEvents.NewReply,
@@ -253,5 +253,14 @@ public sealed class OutboxProcessor : BackgroundService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Buduje treść powiadomienia: "Temat — fragment wiadomości" lub sam temat gdy brak podglądu.
+    /// </summary>
+    private static string BuildNotificationBody(string subject, string preview)
+    {
+        if (string.IsNullOrWhiteSpace(preview)) return subject;
+        return $"{subject} — {preview}";
     }
 }
