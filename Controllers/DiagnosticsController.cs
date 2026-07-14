@@ -160,12 +160,9 @@ public sealed class DiagnosticsController : ControllerBase
                 Token = token,
                 Data  = new Dictionary<string, string>
                 {
-                    ["title"] = "BookingHub — test FCM",
-                    ["body"]  = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC ✅",
-                },
-                Webpush = new WebpushConfig
-                {
-                    FcmOptions = new WebpushFcmOptions { Link = "https://bookinghub-web.pages.dev/" },
+                    ["title"]     = "BookingHub — test FCM",
+                    ["body"]      = $"Push dotarł o {DateTime.UtcNow:HH:mm:ss} UTC",
+                    ["actionUrl"] = "/",
                 },
             }, ct);
 #pragma warning restore CS0618

@@ -117,17 +117,14 @@ public sealed class FcmService : IFcmService
                 ["body"]  = body,
             };
 
+            // Brak WebpushFcmOptions.Link — gdy Link jest ustawiony bez Notification,
+            // Firebase automatycznie generuje powiadomienie z domyślną nazwą aplikacji,
+            // co nadpisuje treść przed wywołaniem onBackgroundMessage w SW.
+            // Nawigacja po kliknięciu obsługiwana jest przez SW notificationclick (actionUrl w data).
             var messages = batch.Select(token => new Message
             {
                 Token  = token,
                 Data   = enrichedData,
-                Webpush = new WebpushConfig
-                {
-                    FcmOptions = new WebpushFcmOptions
-                    {
-                        Link = ToAbsoluteLink(enrichedData.GetValueOrDefault("actionUrl")),
-                    },
-                },
             }).ToList();
 #pragma warning restore CS0618
 
