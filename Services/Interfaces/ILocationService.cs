@@ -25,4 +25,16 @@ public interface ILocationService
 
     /// <summary>Usuwa lokalizację (soft delete). Tylko gdy brak zaplanowanych zajęć.</summary>
     Task DeleteAsync(Guid locationId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Podsumowanie zajętości sali w danym miesiącu (widok kalendarza miesięcznego).
+    /// Dla każdego dnia: liczba zajęć, pokryte godziny (unia interwałów) i poziom zajętości.
+    /// </summary>
+    Task<LocationMonthSummaryResponse> GetMonthScheduleAsync(Guid locationId, int year, int month, CancellationToken ct = default);
+
+    /// <summary>
+    /// Harmonogram sali dla konkretnego dnia (widok dzienny z blokami godzinowymi).
+    /// Zwraca wszystkie zajęcia w lokalizacji wraz z liczebnościami uczestników (bez imion).
+    /// </summary>
+    Task<LocationDayScheduleResponse> GetDayScheduleAsync(Guid locationId, DateOnly date, CancellationToken ct = default);
 }

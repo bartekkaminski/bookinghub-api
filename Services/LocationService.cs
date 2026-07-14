@@ -1,4 +1,5 @@
 using BookingHub.Api.Dtos.Location;
+using BookingHub.Api.Models;
 using BookingHub.Api.Repositories.Common;
 using BookingHub.Api.Repositories.Interfaces;
 using BookingHub.Api.Services.Exceptions;
@@ -14,13 +15,16 @@ public sealed class LocationService : ILocationService
 {
     private readonly ILocationRepository _locations;
     private readonly IOrganizationRepository _organizations;
+    private readonly IEventRepository _events;
 
     public LocationService(
         ILocationRepository locations,
-        IOrganizationRepository organizations)
+        IOrganizationRepository organizations,
+        IEventRepository events)
     {
         _locations     = locations;
         _organizations = organizations;
+        _events        = events;
     }
 
     /// <inheritdoc/>
@@ -90,5 +94,93 @@ public sealed class LocationService : ILocationService
                 "Nie można usunąć lokalizacji z zaplanowanymi zajęciami.");
 
         await _locations.DeleteAsync(locationId, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<LocationMonthSummaryResponse> GetMonthScheduleAsync(
+        Guid locationId, int year, int month, CancellationToken ct = default)
+    {
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to   = from.AddMonths(1);
+
+        var events = await _events.GetByLocationAndRangeAsync(locationId, from, to, ct);
+
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var days        = new List<LocationDaySummary>(daysInMonth);
+
+        for (var day = 1; day <= daysInMonth; day++)
+        {
+            var dayStart = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+            var dayEnd   = dayStart.AddDays(1);
+
+            // Wszystkie zajęcia (łącznie z odwołanymi) dla licznika
+            var allDayEvents = events
+                .Where(e => e.StartTime < dayEnd && e.EndTime > dayStart)
+                .ToList();
+
+            // Tylko aktywne zajęcia do obliczenia pokrycia godzinowego
+            var activeEvents = allDayEvents
+                .Where(e => e.Status != EventStatus.Cancelled)
+                .ToList();
+
+            var coveredHours = CalculateCoveredHours(activeEvents, dayStart, dayEnd);
+
+            days.Add(new LocationDaySummary
+            {
+                Date         = new DateOnly(year, month, day),
+                EventCount   = allDayEvents.Count,
+                CoveredHours = coveredHours,
+                Occupancy    = coveredHours == 0   ? LocationOccupancy.None
+                             : coveredHours < 8    ? LocationOccupancy.Partial
+                             : LocationOccupancy.Full,
+            });
+        }
+
+        return new LocationMonthSummaryResponse { Year = year, Month = month, Days = days };
+    }
+
+    /// <inheritdoc/>
+    public async Task<LocationDayScheduleResponse> GetDayScheduleAsync(
+        Guid locationId, DateOnly date, CancellationToken ct = default)
+    {
+        var dayStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var dayEnd   = dayStart.AddDays(1);
+
+        var events  = await _events.GetByLocationAndRangeAsync(locationId, dayStart, dayEnd, ct);
+        var mapped  = events.Select(e => e.ToLocationDayEvent()).ToList();
+
+        return new LocationDayScheduleResponse { Date = date, Events = mapped };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Oblicza łączną liczbę godzin pokrytych przez listę zajęć w danym dniu,
+    /// używając algorytmu unii interwałów (bez podwójnego liczenia zakładek).
+    /// </summary>
+    private static double CalculateCoveredHours(
+        IReadOnlyList<Event> events, DateTime dayStart, DateTime dayEnd)
+    {
+        if (events.Count == 0) return 0;
+
+        var intervals = events
+            .Select(e => (
+                start: e.StartTime < dayStart ? dayStart : e.StartTime,
+                end:   e.EndTime   > dayEnd   ? dayEnd   : e.EndTime))
+            .OrderBy(i => i.start)
+            .ToList();
+
+        var covered = TimeSpan.Zero;
+        var cursor  = dayStart;
+
+        foreach (var (start, end) in intervals)
+        {
+            if (start > cursor) cursor = start;
+            if (end   > cursor) { covered += end - cursor; cursor = end; }
+        }
+
+        return covered.TotalHours;
     }
 }

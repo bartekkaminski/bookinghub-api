@@ -79,4 +79,12 @@ public interface IEventRepository : IBaseRepository<Event>
     /// Zwraca liczbę zajęć przypisanych do danej grupy.
     /// </summary>
     Task<int> CountByGroupAsync(Guid groupId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pobiera zajęcia przypisane do danej lokalizacji w przedziale dat.
+    /// Zawiera szczegóły potrzebne do widoku harmonogramu sali:
+    /// grupę, serię (dla koloru), zapisy indywidualne i zespołowe z liczebnościami.
+    /// </summary>
+    Task<IReadOnlyList<Event>> GetByLocationAndRangeAsync(
+        Guid locationId, DateTime from, DateTime to, CancellationToken cancellationToken = default);
 }

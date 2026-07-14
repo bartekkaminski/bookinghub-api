@@ -5,6 +5,7 @@ using BookingHub.Api.Repositories.Common;
 using BookingHub.Api.Services.Exceptions;
 using BookingHub.Api.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using ServiceException = BookingHub.Api.Services.Exceptions.ServiceException;
 
 namespace BookingHub.Api.Controllers;
 
@@ -122,5 +123,63 @@ public sealed class LocationsController : BookingHubControllerBase
     {
         await _locations.DeleteAsync(locationId, ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Podsumowanie zajętości sali w danym miesiącu — widok kalendarza miesięcznego.
+    /// Dla każdego dnia zwraca liczbę zajęć, pokryte godziny i poziom zajętości (None/Partial/Full).
+    /// Dostępne dla wszystkich aktywnych członków organizacji.
+    /// </summary>
+    [HttpGet("{locationId:guid}/schedule/month")]
+    [ProducesResponseType(typeof(LocationMonthSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LocationMonthSummaryResponse>> GetMonthSchedule(
+        Guid organizationId, Guid locationId,
+        [FromQuery] int year, [FromQuery] int month,
+        CancellationToken ct)
+    {
+        var location = await _locations.GetByIdAsync(locationId, ct);
+        if (location.OrganizationId != organizationId)
+            throw new ServiceException(ServiceErrorCode.NotFound,
+                $"Lokalizacja {locationId} nie istnieje w tej organizacji.");
+
+        if (year is < 2020 or > 2100)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Rok musi być z zakresu 2020–2100.", nameof(year));
+
+        if (month is < 1 or > 12)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Miesiąc musi być z zakresu 1–12.", nameof(month));
+
+        var result = await _locations.GetMonthScheduleAsync(locationId, year, month, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Harmonogram sali dla konkretnego dnia — widok dzienny z blokami godzinowymi.
+    /// Zwraca wszystkie zajęcia z liczebnościami uczestników (bez imion — prywatność).
+    /// Dostępne dla wszystkich aktywnych członków organizacji.
+    /// </summary>
+    [HttpGet("{locationId:guid}/schedule/day")]
+    [ProducesResponseType(typeof(LocationDayScheduleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LocationDayScheduleResponse>> GetDaySchedule(
+        Guid organizationId, Guid locationId,
+        [FromQuery] string date,
+        CancellationToken ct)
+    {
+        var location = await _locations.GetByIdAsync(locationId, ct);
+        if (location.OrganizationId != organizationId)
+            throw new ServiceException(ServiceErrorCode.NotFound,
+                $"Lokalizacja {locationId} nie istnieje w tej organizacji.");
+
+        if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", out var parsedDate))
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Nieprawidłowy format daty. Oczekiwany: YYYY-MM-DD.", nameof(date));
+
+        var result = await _locations.GetDayScheduleAsync(locationId, parsedDate, ct);
+        return Ok(result);
     }
 }

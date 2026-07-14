@@ -203,6 +203,23 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
     public async Task<int> CountByGroupAsync(Guid groupId, CancellationToken cancellationToken = default)
         => await _dbSet.CountAsync(e => e.GroupId == groupId, cancellationToken);
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Event>> GetByLocationAndRangeAsync(
+        Guid locationId, DateTime from, DateTime to, CancellationToken cancellationToken = default)
+        => await _dbSet
+            .AsNoTracking()
+            .Include(e => e.Group)
+            .Include(e => e.EventSeries)
+            .Include(e => e.Enrollments)
+            .Include(e => e.TeamEnrollments)
+                .ThenInclude(te => te.Team)
+                    .ThenInclude(t => t.Members)
+            .Where(e => e.LocationId == locationId
+                     && e.StartTime < to
+                     && e.EndTime > from)
+            .OrderBy(e => e.StartTime)
+            .ToListAsync(cancellationToken);
+
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
