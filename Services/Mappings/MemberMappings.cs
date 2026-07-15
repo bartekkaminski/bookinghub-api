@@ -38,6 +38,7 @@ internal static class MemberMappings
         PhotoUrl         = member.PhotoUrl ?? member.Person?.PhotoUrl,
         Color            = member.Color,
         Priority         = member.Priority,
+        PlayerNumber     = member.PlayerNumber,
         IsActive         = member.IsActive,
         DateOfBirth      = member.Person?.DateOfBirth,
         Roles            = member.Roles.Select(r => r.Role).ToList(),
@@ -66,10 +67,11 @@ internal static class MemberMappings
 
     public static void ApplyUpdate(this OrganizationMember member, UpdateMemberRequest dto)
     {
-        member.DisplayName = dto.DisplayName?.Trim();
-        member.PhotoUrl    = dto.PhotoUrl?.Trim();
-        member.Color       = dto.Color?.Trim();
-        member.Priority    = dto.Priority;
+        member.DisplayName   = dto.DisplayName?.Trim();
+        member.PhotoUrl      = dto.PhotoUrl?.Trim();
+        member.Color         = dto.Color?.Trim();
+        member.Priority      = dto.Priority;
+        member.PlayerNumber  = dto.PlayerNumber?.Trim();
     }
 
     public static void ApplyPersonUpdate(this Person person, UpdateMemberRequest dto)

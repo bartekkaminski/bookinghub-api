@@ -152,6 +152,7 @@ public sealed class OrganizationMemberService : IOrganizationMemberService
                 DisplayName    = request.DisplayName?.Trim(),
                 Color          = request.Color?.Trim(),
                 Priority       = request.Priority,
+                PlayerNumber   = request.PlayerNumber?.Trim(),
                 IsActive       = true,
                 Roles          = request.Roles.Select(r => new OrganizationMemberRole { Role = r }).ToList(),
             };
@@ -204,6 +205,7 @@ public sealed class OrganizationMemberService : IOrganizationMemberService
             DisplayName    = request.DisplayName?.Trim(),
             Color          = request.Color?.Trim(),
             Priority       = request.Priority,
+            PlayerNumber   = request.PlayerNumber?.Trim(),
             IsActive       = true,
             Roles          = request.Roles.Select(r => new OrganizationMemberRole { Role = r }).ToList(),
         };

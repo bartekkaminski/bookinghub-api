@@ -31,6 +31,12 @@ public class OrganizationMember : BaseEntity
     /// </summary>
     public int? Priority { get; set; }
 
+    /// <summary>
+    /// Numer zawodnika nadany przez admina (np. "10", "1A").
+    /// Null = brak numeru. Pole per-organizacja.
+    /// </summary>
+    public string? PlayerNumber { get; set; }
+
     /// <summary>Admin który dodał tę osobę do organizacji. Null = pierwszy admin (dodał sam siebie).</summary>
     public Guid? CreatedByPersonId { get; set; }
 

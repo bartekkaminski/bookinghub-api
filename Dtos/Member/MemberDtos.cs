@@ -37,6 +37,7 @@ public sealed class MemberDetailResponse
     public string? PhotoUrl { get; set; }
     public string? Color { get; set; }
     public int? Priority { get; set; }
+    public string? PlayerNumber { get; set; }
     public bool IsActive { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     public IReadOnlyList<MemberRole> Roles { get; set; } = [];
@@ -119,6 +120,9 @@ public sealed class UpdateMemberRequest
 
     [Range(1, int.MaxValue)]
     public int? Priority { get; set; }
+
+    [StringLength(50)]
+    public string? PlayerNumber { get; set; }
 }
 
 /// <summary>Żądanie dodania roli do członkostwa.</summary>
@@ -199,6 +203,9 @@ public sealed class CreateMemberWithAccountRequest
     public int? Priority { get; set; }
 
     public DateOnly? DateOfBirth { get; set; }
+
+    [StringLength(50)]
+    public string? PlayerNumber { get; set; }
 }
 
 /// <summary>Tworzy profil Person (bez konta Kinde) i dodaje go jako członka organizacji.</summary>
@@ -227,4 +234,7 @@ public sealed class CreateMemberProfileRequest
 
     [Range(1, int.MaxValue)]
     public int? Priority { get; set; }
+
+    [StringLength(50)]
+    public string? PlayerNumber { get; set; }
 }
