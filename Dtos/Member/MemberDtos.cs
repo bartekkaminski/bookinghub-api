@@ -17,6 +17,9 @@ public sealed class MemberSummaryResponse
     public int? Priority { get; set; }
     public bool IsActive { get; set; }
     public IReadOnlyList<MemberRole> Roles { get; set; } = [];
+
+    /// <summary>True gdy osoba ma powiązane konto logowania (Person.UserId != null).</summary>
+    public bool HasAccount { get; set; }
 }
 
 /// <summary>Pełne dane członka organizacji — widok szczegółowy.</summary>
@@ -129,6 +132,18 @@ public sealed class AddMemberRoleRequest
 public sealed class SetMemberActiveRequest
 {
     public bool IsActive { get; set; }
+}
+
+/// <summary>
+/// Żądanie przypisania konta logowania do istniejącego profilu bez konta.
+/// Tworzy konto Kinde + User i linkuje z istniejącym Person.
+/// </summary>
+public sealed class AttachAccountRequest
+{
+    [Required]
+    [EmailAddress]
+    [StringLength(256)]
+    public string Email { get; set; } = string.Empty;
 }
 
 /// <summary>Żądanie przypisania stałego trenera do uczestnika.</summary>

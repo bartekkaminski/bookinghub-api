@@ -24,6 +24,7 @@ internal static class MemberMappings
         Priority       = member.Priority,
         IsActive       = member.IsActive,
         Roles          = member.Roles.Select(r => r.Role).ToList(),
+        HasAccount     = member.Person?.UserId is not null,
     };
 
     public static MemberDetailResponse ToDetail(this OrganizationMember member) => new()

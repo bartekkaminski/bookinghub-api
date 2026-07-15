@@ -24,6 +24,7 @@ namespace BookingHub.Api.Controllers;
 /// Zarządzanie:
 ///   POST /add-existing            — dodaj istniejącą osobę (Admin, Manager)
 ///   POST /create-with-account     — utwórz konto Kinde + Person + Member (Admin)
+///   POST /{memberId}/attach-account — przypisz konto do profilu bez konta (Admin)
 ///   PUT  /{memberId}              — edytuj dane per-org (Admin, Manager)
 ///   PATCH /{memberId}/active      — zmień aktywność (Admin)
 ///   POST  /{memberId}/roles       — dodaj rolę (Admin)
@@ -187,6 +188,25 @@ public sealed class MembersController : BookingHubControllerBase
         var created = await _members.CreateMemberProfileAsync(organizationId, request, ct);
         return CreatedAtAction(nameof(GetById),
             new { organizationId, memberId = created.Id }, created);
+    }
+
+    /// <summary>
+    /// Przypisuje konto logowania (Kinde + User) do istniejącego profilu bez konta. Tylko Admin.
+    /// Zwraca błąd 409 gdy email jest już zajęty lub profil już ma konto.
+    /// </summary>
+    [HttpPost("{memberId:guid}/attach-account")]
+    [RequireOrgMembership(OrgRoles.Admin)]
+    [ProducesResponseType(typeof(MemberDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<MemberDetailResponse>> AttachAccount(
+        Guid organizationId, Guid memberId,
+        [FromBody] AttachAccountRequest request, CancellationToken ct)
+    {
+        var result = await _members.AttachAccountAsync(organizationId, memberId, request, ct);
+        return Ok(result);
     }
 
     /// <summary>

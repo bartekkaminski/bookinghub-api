@@ -218,6 +218,77 @@ public sealed class OrganizationMemberService : IOrganizationMemberService
     }
 
     /// <inheritdoc/>
+    public async Task<MemberDetailResponse> AttachAccountAsync(
+        Guid organizationId, Guid memberId, AttachAccountRequest request, CancellationToken ct = default)
+    {
+        // Pobierz i zweryfikuj przynależność do organizacji
+        var member = await _members.GetWithDetailsAsync(memberId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound,
+                $"Członek {memberId} nie istnieje.");
+
+        if (member.OrganizationId != organizationId)
+            throw new ServiceException(ServiceErrorCode.NotFound,
+                $"Członek {memberId} nie istnieje w tej organizacji.");
+
+        // Pobierz profil osoby
+        var person = await _persons.GetByIdAsync(member.PersonId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound,
+                $"Profil {member.PersonId} nie istnieje.");
+
+        // Sprawdź czy profil już ma konto
+        if (person.UserId is not null)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Ten profil ma już przypisane konto logowania.",
+                nameof(request.Email));
+
+        // Sprawdź czy email jest wolny w naszej bazie (przed wywołaniem Kinde)
+        if (await _users.IsEmailTakenAsync(request.Email, null, ct))
+            throw new ServiceException(ServiceErrorCode.EmailAlreadyTaken,
+                $"Adres e-mail '{request.Email}' jest już zajęty przez inne konto.",
+                nameof(request.Email));
+
+        // Utwórz konto w Kinde — Kinde też weryfikuje unikalność emaila
+        var externalId = await _kinde.CreateUserInKindeAsync(
+            person.FirstName ?? string.Empty,
+            person.LastName  ?? string.Empty,
+            request.Email.Trim(),
+            ct);
+
+        try
+        {
+            // Utwórz User w bazie (ProfileCode zostanie backfillowany przy pierwszym logowaniu przez ProvisionAsync)
+            var user = new User
+            {
+                ExternalId   = externalId,
+                AuthProvider = "kinde",
+                Email        = request.Email.Trim().ToLowerInvariant(),
+                IsActive     = true,
+            };
+            user = await _users.AddAsync(user, ct);
+
+            // Podlinkuj istniejący Person do nowego User
+            person.UserId = user.Id;
+            await _persons.UpdateAsync(person, ct);
+
+            _logger.LogInformation(
+                "Przypisano konto {UserId} (Kinde: {KindeId}) do profilu {PersonId} w organizacji {OrgId}.",
+                user.Id, externalId, person.Id, organizationId);
+
+            var withDetails = await _members.GetWithDetailsAsync(memberId, ct);
+            return withDetails!.ToDetail();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex,
+                "Konto Kinde {KindeId} ({Email}) zostało utworzone, ale wystąpił błąd zapisu do DB. " +
+                "Provisioning zsynchronizuje dane przy pierwszym logowaniu.",
+                externalId, request.Email);
+            throw new ServiceException(ServiceErrorCode.DatabaseError,
+                "Konto zostało utworzone w Kinde, ale wystąpił błąd zapisu do bazy danych.");
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<MemberDetailResponse> UpdateAsync(Guid memberId, UpdateMemberRequest request, CancellationToken ct = default)
     {
         var member = await _members.GetByIdAsync(memberId, ct)

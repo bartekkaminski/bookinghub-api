@@ -41,6 +41,12 @@ public interface IOrganizationMemberService
     /// </summary>
     Task<MemberDetailResponse> CreateMemberProfileAsync(Guid organizationId, CreateMemberProfileRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Przypisuje konto logowania (Kinde + User) do istniejącego profilu bez konta.
+    /// Rzuca <see cref="ServiceException"/> gdy profil już ma konto lub email jest zajęty.
+    /// </summary>
+    Task<MemberDetailResponse> AttachAccountAsync(Guid organizationId, Guid memberId, AttachAccountRequest request, CancellationToken ct = default);
+
     /// <summary>Aktualizuje dane per-org członka (DisplayName, Color, Priority, PhotoUrl).</summary>
     Task<MemberDetailResponse> UpdateAsync(Guid memberId, UpdateMemberRequest request, CancellationToken ct = default);
 
