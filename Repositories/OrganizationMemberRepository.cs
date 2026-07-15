@@ -28,6 +28,7 @@ public sealed class OrganizationMemberRepository : BaseRepository<OrganizationMe
                 .ThenInclude(p => p.User)
             .Include(m => m.Organization)
             .Include(m => m.Roles)
+            .Include(m => m.Rank)
             .Include(m => m.Availability)
             .Include(m => m.GroupMemberships)
                 .ThenInclude(gm => gm.Group)
@@ -54,6 +55,7 @@ public sealed class OrganizationMemberRepository : BaseRepository<OrganizationMe
             .AsNoTracking()
             .Include(m => m.Person)
             .Include(m => m.Roles)
+            .Include(m => m.Rank)
             .AsQueryable();
 
         if (filter.OrganizationId.HasValue)
@@ -178,6 +180,7 @@ public sealed class OrganizationMemberRepository : BaseRepository<OrganizationMe
             .AsNoTracking()
             .Include(m => m.Person)
             .Include(m => m.Roles)
+            .Include(m => m.Rank)
             .Where(m => m.OrganizationId == organizationId && m.IsActive)
             .OrderBy(m => m.Person.LastName)
             .ThenBy(m => m.Person.FirstName)

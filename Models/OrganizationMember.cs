@@ -40,9 +40,16 @@ public class OrganizationMember : BaseEntity
     /// <summary>Admin który dodał tę osobę do organizacji. Null = pierwszy admin (dodał sam siebie).</summary>
     public Guid? CreatedByPersonId { get; set; }
 
+    /// <summary>
+    /// Ranga przypisana przez administratora. Null = brak rangi.
+    /// Ustawiana przez PUT /members/{id}/rank.
+    /// </summary>
+    public Guid? RankId { get; set; }
+
     public Organization Organization { get; set; } = null!;
     public Person Person { get; set; } = null!;
     public Person? CreatedBy { get; set; }
+    public OrganizationRank? Rank { get; set; }
     public ICollection<OrganizationMemberRole> Roles { get; set; } = [];
     public ICollection<GroupMember> GroupMemberships { get; set; } = [];
     public ICollection<TeamMember> TeamMemberships { get; set; } = [];

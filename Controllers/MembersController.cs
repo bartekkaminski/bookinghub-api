@@ -38,10 +38,12 @@ namespace BookingHub.Api.Controllers;
 public sealed class MembersController : BookingHubControllerBase
 {
     private readonly IOrganizationMemberService _members;
+    private readonly IRankService _rankService;
 
-    public MembersController(IOrganizationMemberService members)
+    public MembersController(IOrganizationMemberService members, IRankService rankService)
     {
-        _members = members;
+        _members     = members;
+        _rankService = rankService;
     }
 
     /// <summary>
@@ -340,6 +342,24 @@ public sealed class MembersController : BookingHubControllerBase
         await GetMemberInOrgOrThrowAsync(memberId, organizationId, ct);
         await _members.DeleteAsync(memberId, ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Ustawia lub usuwa rangę członka. Tylko Admin.
+    /// Wysłanie RankId = null usuwa przypisanie rangi.
+    /// </summary>
+    [HttpPut("{memberId:guid}/rank")]
+    [RequireOrgMembership(OrgRoles.Admin)]
+    [ProducesResponseType(typeof(MemberDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MemberDetailResponse>> SetRank(
+        Guid organizationId, Guid memberId,
+        [FromBody] SetMemberRankRequest request, CancellationToken ct)
+    {
+        var updated = await _rankService.SetMemberRankAsync(organizationId, memberId, request.RankId, ct);
+        return Ok(updated);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

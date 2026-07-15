@@ -151,6 +151,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EventEnrollment> EventEnrollments => Set<EventEnrollment>();
     public DbSet<EventTeamEnrollment> EventTeamEnrollments => Set<EventTeamEnrollment>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
+    public DbSet<OrganizationRank> OrganizationRanks => Set<OrganizationRank>();
 
     /// <summary>Transactional Outbox — zdarzenia do wysłania przez SignalR / FCM.</summary>
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
@@ -185,6 +186,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<EventTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventEnrollment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventTeamEnrollment>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<OrganizationRank>().HasQueryFilter(e => !e.IsDeleted);
 
         // ── User ─────────────────────────────────────────────────────────────
         modelBuilder.Entity<User>(e =>
@@ -261,6 +263,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             e.HasIndex(m => m.OrganizationId);
             e.HasIndex(m => m.PersonId);
+            e.HasIndex(m => m.RankId);
 
             e.HasOne(m => m.Organization)
              .WithMany(o => o.Members)
@@ -277,6 +280,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .HasForeignKey(m => m.CreatedByPersonId)
              .IsRequired(false)
              .OnDelete(DeleteBehavior.SetNull);
+
+            // Usunięcie rangi zeruje RankId u wszystkich przypisanych członków
+            e.HasOne(m => m.Rank)
+             .WithMany(r => r.Members)
+             .HasForeignKey(m => m.RankId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── OrganizationRank ─────────────────────────────────────────────────
+        modelBuilder.Entity<OrganizationRank>(e =>
+        {
+            e.Property(r => r.Name).HasMaxLength(100).IsRequired();
+            e.Property(r => r.Color).HasMaxLength(7);
+
+            e.HasIndex(r => r.OrganizationId);
+
+            e.HasOne(r => r.Organization)
+             .WithMany()
+             .HasForeignKey(r => r.OrganizationId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── OrganizationMemberRole ────────────────────────────────────────────

@@ -20,6 +20,9 @@ public sealed class MemberSummaryResponse
 
     /// <summary>True gdy osoba ma powiązane konto logowania (Person.UserId != null).</summary>
     public bool HasAccount { get; set; }
+
+    /// <summary>Ranga przypisana przez administratora. Null = brak rangi.</summary>
+    public MemberRankInfo? Rank { get; set; }
 }
 
 /// <summary>Pełne dane członka organizacji — widok szczegółowy.</summary>
@@ -44,6 +47,10 @@ public sealed class MemberDetailResponse
     public IReadOnlyList<MemberGroupInfo> Groups { get; set; } = [];
     public IReadOnlyList<MemberTeamInfo> Teams { get; set; } = [];
     public IReadOnlyList<MemberTrainerInfo> AssignedTrainers { get; set; } = [];
+
+    /// <summary>Ranga przypisana przez administratora. Null = brak rangi.</summary>
+    public MemberRankInfo? Rank { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -67,6 +74,20 @@ public sealed class MemberTrainerInfo
     public Guid TrainerMemberId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string? Color { get; set; }
+}
+
+/// <summary>Informacje o randze przypisanej do członka.</summary>
+public sealed class MemberRankInfo
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string? Color { get; init; }
+}
+
+/// <summary>Żądanie ustawienia rangi członka. RankId = null usuwa rangę.</summary>
+public sealed class SetMemberRankRequest
+{
+    public Guid? RankId { get; set; }
 }
 
 /// <summary>

@@ -25,6 +25,7 @@ internal static class MemberMappings
         IsActive       = member.IsActive,
         Roles          = member.Roles.Select(r => r.Role).ToList(),
         HasAccount     = member.Person?.UserId is not null,
+        Rank           = member.Rank is { } r ? new MemberRankInfo { Id = r.Id, Name = r.Name, Color = r.Color } : null,
     };
 
     public static MemberDetailResponse ToDetail(this OrganizationMember member) => new()
@@ -61,6 +62,7 @@ internal static class MemberMappings
             DisplayName     = pt.Trainer?.ResolveDisplayName() ?? string.Empty,
             Color           = pt.Trainer?.Color,
         }).ToList(),
+        Rank       = member.Rank is { } r ? new MemberRankInfo { Id = r.Id, Name = r.Name, Color = r.Color } : null,
         CreatedAt  = member.CreatedAt,
         UpdatedAt  = member.UpdatedAt,
     };

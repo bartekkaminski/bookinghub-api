@@ -46,6 +46,10 @@ public enum ServiceErrorCode
     /// <summary>Operacja wymaga roli Uczestnika, a członek jej nie ma.</summary>
     NotAParticipant,
 
+    // ── Rank ──────────────────────────────────────────────────────────────────
+    /// <summary>Nazwa rangi jest już zajęta w tej organizacji.</summary>
+    RankNameTaken,
+
     // ── Group ─────────────────────────────────────────────────────────────────
     /// <summary>Nazwa grupy jest już zajęta w tej organizacji.</summary>
     GroupNameTaken,
