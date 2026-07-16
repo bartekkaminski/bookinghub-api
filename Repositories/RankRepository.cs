@@ -14,11 +14,11 @@ public sealed class RankRepository : BaseRepository<OrganizationRank>, IRankRepo
     public RankRepository(AppDbContext context) : base(context) { }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<OrganizationRank>> GetByOrganizationAsync(
-        Guid organizationId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<OrganizationRank>> GetByDisciplineAsync(
+        Guid disciplineId, CancellationToken ct = default)
         => await _dbSet
             .AsNoTracking()
-            .Where(r => r.OrganizationId == organizationId)
+            .Where(r => r.DisciplineId == disciplineId)
             .OrderBy(r => r.Name)
             .ToListAsync(ct);
 
@@ -26,11 +26,16 @@ public sealed class RankRepository : BaseRepository<OrganizationRank>, IRankRepo
     public async Task<PagedResult<OrganizationMember>> GetPagedMembersAsync(
         Guid rankId, int page, int pageSize, CancellationToken ct = default)
     {
+        // Filtrujemy OrganizationMember bezpośrednio przez nawigację MemberRanks — Include musi być
+        // zastosowany na tym samym IQueryable<OrganizationMember>, a nie po Select(mr => mr.Member)
+        // (EF Core nie wspiera Include po Select, który projektuje inny typ encji — runtime error).
         var query = _context.Set<OrganizationMember>()
             .AsNoTracking()
-            .Where(m => m.RankId == rankId)
+            .Where(m => m.MemberRanks.Any(mr => mr.RankId == rankId))
             .Include(m => m.Person)
             .Include(m => m.Roles)
+            .Include(m => m.MemberRanks).ThenInclude(mr => mr.Discipline)
+            .Include(m => m.MemberRanks).ThenInclude(mr => mr.Rank)
             .OrderBy(m => m.Person.LastName)
             .ThenBy(m => m.Person.FirstName);
 
@@ -45,14 +50,14 @@ public sealed class RankRepository : BaseRepository<OrganizationRank>, IRankRepo
 
     /// <inheritdoc/>
     public async Task<int> CountMembersAsync(Guid rankId, CancellationToken ct = default)
-        => await _context.Set<OrganizationMember>()
-            .CountAsync(m => m.RankId == rankId, ct);
+        => await _context.Set<MemberRank>()
+            .CountAsync(mr => mr.RankId == rankId, ct);
 
     /// <inheritdoc/>
     public async Task<bool> IsNameTakenAsync(
-        Guid organizationId, string name, Guid? excludeId = null, CancellationToken ct = default)
+        Guid disciplineId, string name, Guid? excludeId = null, CancellationToken ct = default)
         => await _dbSet.AnyAsync(
-            r => r.OrganizationId == organizationId
+            r => r.DisciplineId == disciplineId
               && r.Name == name
               && (excludeId == null || r.Id != excludeId),
             ct);

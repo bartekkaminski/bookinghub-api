@@ -5,19 +5,23 @@ namespace BookingHub.Api.Services.Mappings;
 
 internal static class RankMappings
 {
-    public static RankSummaryResponse ToSummary(this OrganizationRank rank, int memberCount) => new()
+    public static RankSummaryResponse ToSummary(this OrganizationRank rank, string disciplineName, int memberCount) => new()
     {
         Id             = rank.Id,
         OrganizationId = rank.OrganizationId,
+        DisciplineId   = rank.DisciplineId,
+        DisciplineName = disciplineName,
         Name           = rank.Name,
         Color          = rank.Color,
         MemberCount    = memberCount,
     };
 
-    public static RankDetailResponse ToDetail(this OrganizationRank rank, int memberCount) => new()
+    public static RankDetailResponse ToDetail(this OrganizationRank rank, string disciplineName, int memberCount) => new()
     {
         Id             = rank.Id,
         OrganizationId = rank.OrganizationId,
+        DisciplineId   = rank.DisciplineId,
+        DisciplineName = disciplineName,
         Name           = rank.Name,
         Color          = rank.Color,
         MemberCount    = memberCount,

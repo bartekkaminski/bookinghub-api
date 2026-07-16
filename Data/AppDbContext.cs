@@ -152,6 +152,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<EventTeamEnrollment> EventTeamEnrollments => Set<EventTeamEnrollment>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
     public DbSet<OrganizationRank> OrganizationRanks => Set<OrganizationRank>();
+    public DbSet<Discipline> Disciplines => Set<Discipline>();
+    public DbSet<MemberRank> MemberRanks => Set<MemberRank>();
 
     /// <summary>Transactional Outbox — zdarzenia do wysłania przez SignalR / FCM.</summary>
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
@@ -187,6 +189,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<EventEnrollment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventTeamEnrollment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<OrganizationRank>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Discipline>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<MemberRank>().HasQueryFilter(e => !e.IsDeleted);
 
         // ── User ─────────────────────────────────────────────────────────────
         modelBuilder.Entity<User>(e =>
@@ -263,7 +267,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             e.HasIndex(m => m.OrganizationId);
             e.HasIndex(m => m.PersonId);
-            e.HasIndex(m => m.RankId);
 
             e.HasOne(m => m.Organization)
              .WithMany(o => o.Members)
@@ -280,13 +283,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .HasForeignKey(m => m.CreatedByPersonId)
              .IsRequired(false)
              .OnDelete(DeleteBehavior.SetNull);
+        });
 
-            // Usunięcie rangi zeruje RankId u wszystkich przypisanych członków
-            e.HasOne(m => m.Rank)
-             .WithMany(r => r.Members)
-             .HasForeignKey(m => m.RankId)
-             .IsRequired(false)
-             .OnDelete(DeleteBehavior.SetNull);
+        // ── Discipline ────────────────────────────────────────────────────────
+        modelBuilder.Entity<Discipline>(e =>
+        {
+            e.Property(d => d.Name).HasMaxLength(100).IsRequired();
+            e.Property(d => d.Color).HasMaxLength(7);
+
+            e.HasIndex(d => d.OrganizationId);
+
+            e.HasOne(d => d.Organization)
+             .WithMany(o => o.Disciplines)
+             .HasForeignKey(d => d.OrganizationId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── OrganizationRank ─────────────────────────────────────────────────
@@ -296,10 +306,51 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(r => r.Color).HasMaxLength(7);
 
             e.HasIndex(r => r.OrganizationId);
+            e.HasIndex(r => r.DisciplineId);
 
             e.HasOne(r => r.Organization)
              .WithMany()
              .HasForeignKey(r => r.OrganizationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            // Cascade — usunięcie dyscypliny (np. kaskadowo przez usunięcie organizacji) usuwa
+            // też jej rangi. Usunięcie pojedynczej dyscypliny przez użytkownika jest jednak
+            // blokowane wcześniej w DisciplineService, dopóki ma ona jakiekolwiek rangi.
+            e.HasOne(r => r.Discipline)
+             .WithMany(d => d.Ranks)
+             .HasForeignKey(r => r.DisciplineId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── MemberRank ────────────────────────────────────────────────────────
+        modelBuilder.Entity<MemberRank>(e =>
+        {
+            // Członek może mieć co najwyżej jedną rangę per dyscyplina
+            e.HasIndex(mr => new { mr.MemberId, mr.DisciplineId })
+             .IsUnique()
+             .HasFilter("\"IsDeleted\" = false");
+
+            e.HasIndex(mr => mr.MemberId);
+            e.HasIndex(mr => mr.DisciplineId);
+            e.HasIndex(mr => mr.RankId);
+
+            // Cascade — usunięcie członka usuwa też jego przypisania rang
+            e.HasOne(mr => mr.Member)
+             .WithMany(m => m.MemberRanks)
+             .HasForeignKey(mr => mr.MemberId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            // Restrict — usunięcie dyscypliny jest blokowane w serwisie, dopóki ma rangi
+            // (a rangi nie mogą istnieć bez przypisań do MemberRank pozostających w spójnym stanie)
+            e.HasOne(mr => mr.Discipline)
+             .WithMany()
+             .HasForeignKey(mr => mr.DisciplineId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            // Cascade — usunięcie rangi usuwa też przypisania członków do tej rangi
+            e.HasOne(mr => mr.Rank)
+             .WithMany(r => r.MemberRanks)
+             .HasForeignKey(mr => mr.RankId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

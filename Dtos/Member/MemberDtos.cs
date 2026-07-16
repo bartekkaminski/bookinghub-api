@@ -21,8 +21,8 @@ public sealed class MemberSummaryResponse
     /// <summary>True gdy osoba ma powiązane konto logowania (Person.UserId != null).</summary>
     public bool HasAccount { get; set; }
 
-    /// <summary>Ranga przypisana przez administratora. Null = brak rangi.</summary>
-    public MemberRankInfo? Rank { get; set; }
+    /// <summary>Rangi przypisane przez administratora, jedna per dyscyplina. Pusta lista = brak rang.</summary>
+    public IReadOnlyList<MemberRankInfo> Ranks { get; set; } = [];
 }
 
 /// <summary>Pełne dane członka organizacji — widok szczegółowy.</summary>
@@ -48,8 +48,8 @@ public sealed class MemberDetailResponse
     public IReadOnlyList<MemberTeamInfo> Teams { get; set; } = [];
     public IReadOnlyList<MemberTrainerInfo> AssignedTrainers { get; set; } = [];
 
-    /// <summary>Ranga przypisana przez administratora. Null = brak rangi.</summary>
-    public MemberRankInfo? Rank { get; set; }
+    /// <summary>Rangi przypisane przez administratora, jedna per dyscyplina. Pusta lista = brak rang.</summary>
+    public IReadOnlyList<MemberRankInfo> Ranks { get; set; } = [];
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -76,12 +76,14 @@ public sealed class MemberTrainerInfo
     public string? Color { get; set; }
 }
 
-/// <summary>Informacje o randze przypisanej do członka.</summary>
+/// <summary>Informacje o randze przypisanej do członka w ramach jednej dyscypliny.</summary>
 public sealed class MemberRankInfo
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string? Color { get; init; }
+    public Guid DisciplineId { get; init; }
+    public string DisciplineName { get; init; } = string.Empty;
+    public Guid RankId { get; init; }
+    public string RankName { get; init; } = string.Empty;
+    public string? RankColor { get; init; }
 }
 
 /// <summary>Żądanie ustawienia rangi członka. RankId = null usuwa rangę.</summary>

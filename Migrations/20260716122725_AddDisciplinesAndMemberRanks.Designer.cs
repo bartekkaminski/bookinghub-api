@@ -3,6 +3,7 @@ using System;
 using BookingHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BookingHub.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260716122725_AddDisciplinesAndMemberRanks")]
+    partial class AddDisciplinesAndMemberRanks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1549,7 +1552,7 @@ namespace BookingHub.Api.Migrations
             modelBuilder.Entity("BookingHub.Api.Models.Discipline", b =>
                 {
                     b.HasOne("BookingHub.Api.Models.Organization", "Organization")
-                        .WithMany("Disciplines")
+                        .WithMany()
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1821,7 +1824,7 @@ namespace BookingHub.Api.Migrations
                     b.HasOne("BookingHub.Api.Models.OrganizationRank", "Rank")
                         .WithMany("MemberRanks")
                         .HasForeignKey("RankId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Discipline");
@@ -1942,7 +1945,7 @@ namespace BookingHub.Api.Migrations
                     b.HasOne("BookingHub.Api.Models.Discipline", "Discipline")
                         .WithMany("Ranks")
                         .HasForeignKey("DisciplineId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("BookingHub.Api.Models.Organization", "Organization")
@@ -2198,8 +2201,6 @@ namespace BookingHub.Api.Migrations
 
             modelBuilder.Entity("BookingHub.Api.Models.Organization", b =>
                 {
-                    b.Navigation("Disciplines");
-
                     b.Navigation("EventSeries");
 
                     b.Navigation("Events");

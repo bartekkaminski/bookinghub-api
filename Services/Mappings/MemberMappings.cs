@@ -25,7 +25,7 @@ internal static class MemberMappings
         IsActive       = member.IsActive,
         Roles          = member.Roles.Select(r => r.Role).ToList(),
         HasAccount     = member.Person?.UserId is not null,
-        Rank           = member.Rank is { } r ? new MemberRankInfo { Id = r.Id, Name = r.Name, Color = r.Color } : null,
+        Ranks          = member.MemberRanks.Select(mr => mr.ToInfo()).ToList(),
     };
 
     public static MemberDetailResponse ToDetail(this OrganizationMember member) => new()
@@ -62,9 +62,18 @@ internal static class MemberMappings
             DisplayName     = pt.Trainer?.ResolveDisplayName() ?? string.Empty,
             Color           = pt.Trainer?.Color,
         }).ToList(),
-        Rank       = member.Rank is { } r ? new MemberRankInfo { Id = r.Id, Name = r.Name, Color = r.Color } : null,
+        Ranks      = member.MemberRanks.Select(mr => mr.ToInfo()).ToList(),
         CreatedAt  = member.CreatedAt,
         UpdatedAt  = member.UpdatedAt,
+    };
+
+    private static MemberRankInfo ToInfo(this MemberRank mr) => new()
+    {
+        DisciplineId   = mr.DisciplineId,
+        DisciplineName = mr.Discipline?.Name ?? string.Empty,
+        RankId         = mr.RankId,
+        RankName       = mr.Rank?.Name ?? string.Empty,
+        RankColor      = mr.Rank?.Color,
     };
 
     public static void ApplyUpdate(this OrganizationMember member, UpdateMemberRequest dto)

@@ -345,20 +345,20 @@ public sealed class MembersController : BookingHubControllerBase
     }
 
     /// <summary>
-    /// Ustawia lub usuwa rangę członka. Tylko Admin.
-    /// Wysłanie RankId = null usuwa przypisanie rangi.
+    /// Ustawia lub usuwa rangę członka w ramach konkretnej dyscypliny. Tylko Admin.
+    /// Wysłanie RankId = null usuwa przypisanie rangi w tej dyscyplinie.
     /// </summary>
-    [HttpPut("{memberId:guid}/rank")]
+    [HttpPut("{memberId:guid}/disciplines/{disciplineId:guid}/rank")]
     [RequireOrgMembership(OrgRoles.Admin)]
     [ProducesResponseType(typeof(MemberDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MemberDetailResponse>> SetRank(
-        Guid organizationId, Guid memberId,
+        Guid organizationId, Guid memberId, Guid disciplineId,
         [FromBody] SetMemberRankRequest request, CancellationToken ct)
     {
-        var updated = await _rankService.SetMemberRankAsync(organizationId, memberId, request.RankId, ct);
+        var updated = await _rankService.SetMemberRankAsync(organizationId, memberId, disciplineId, request.RankId, ct);
         return Ok(updated);
     }
 

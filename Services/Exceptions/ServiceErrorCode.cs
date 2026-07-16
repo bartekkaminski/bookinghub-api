@@ -47,8 +47,14 @@ public enum ServiceErrorCode
     NotAParticipant,
 
     // ── Rank ──────────────────────────────────────────────────────────────────
-    /// <summary>Nazwa rangi jest już zajęta w tej organizacji.</summary>
+    /// <summary>Nazwa rangi jest już zajęta w tej dyscyplinie.</summary>
     RankNameTaken,
+
+    // ── Discipline ────────────────────────────────────────────────────────────
+    /// <summary>Nazwa dyscypliny jest już zajęta w tej organizacji.</summary>
+    DisciplineNameTaken,
+    /// <summary>Nie można usunąć dyscypliny, która ma jeszcze zdefiniowane rangi.</summary>
+    DisciplineHasRanks,
 
     // ── Group ─────────────────────────────────────────────────────────────────
     /// <summary>Nazwa grupy jest już zajęta w tej organizacji.</summary>

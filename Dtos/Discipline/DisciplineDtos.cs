@@ -1,39 +1,35 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace BookingHub.Api.Dtos.Rank;
+namespace BookingHub.Api.Dtos.Discipline;
 
-/// <summary>Skrócone dane rangi — do list.</summary>
-public sealed class RankSummaryResponse
+/// <summary>Skrócone dane dyscypliny — do list.</summary>
+public sealed class DisciplineSummaryResponse
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
-    public Guid DisciplineId { get; init; }
-    public string DisciplineName { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
 
-    /// <summary>Kolor HEX rangi, np. "#F59E0B". Null = brak koloru.</summary>
+    /// <summary>Kolor HEX dyscypliny, np. "#F59E0B". Null = brak koloru.</summary>
     public string? Color { get; init; }
 
-    /// <summary>Liczba aktywnych członków posiadających tę rangę.</summary>
-    public int MemberCount { get; init; }
+    /// <summary>Liczba rang zdefiniowanych w tej dyscyplinie.</summary>
+    public int RankCount { get; init; }
 }
 
-/// <summary>Pełne dane rangi — widok szczegółowy.</summary>
-public sealed class RankDetailResponse
+/// <summary>Pełne dane dyscypliny — widok szczegółowy.</summary>
+public sealed class DisciplineDetailResponse
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
-    public Guid DisciplineId { get; init; }
-    public string DisciplineName { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string? Color { get; init; }
-    public int MemberCount { get; init; }
+    public int RankCount { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
 
-/// <summary>Dane do tworzenia nowej rangi w ramach dyscypliny.</summary>
-public sealed class CreateRankRequest
+/// <summary>Dane do tworzenia nowej dyscypliny.</summary>
+public sealed class CreateDisciplineRequest
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]
@@ -44,8 +40,8 @@ public sealed class CreateRankRequest
     public string? Color { get; set; }
 }
 
-/// <summary>Dane do aktualizacji rangi.</summary>
-public sealed class UpdateRankRequest
+/// <summary>Dane do aktualizacji dyscypliny.</summary>
+public sealed class UpdateDisciplineRequest
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]

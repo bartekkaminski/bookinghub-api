@@ -9,9 +9,9 @@ namespace BookingHub.Api.Repositories.Interfaces;
 public interface IRankRepository : IBaseRepository<OrganizationRank>
 {
     /// <summary>
-    /// Pobiera wszystkie rangi w organizacji posortowane alfabetycznie.
+    /// Pobiera wszystkie rangi w dyscyplinie posortowane alfabetycznie.
     /// </summary>
-    Task<IReadOnlyList<OrganizationRank>> GetByOrganizationAsync(Guid organizationId, CancellationToken ct = default);
+    Task<IReadOnlyList<OrganizationRank>> GetByDisciplineAsync(Guid disciplineId, CancellationToken ct = default);
 
     /// <summary>
     /// Pobiera stronicowaną listę aktywnych członków z daną rangą.
@@ -24,7 +24,7 @@ public interface IRankRepository : IBaseRepository<OrganizationRank>
     Task<int> CountMembersAsync(Guid rankId, CancellationToken ct = default);
 
     /// <summary>
-    /// Sprawdza, czy nazwa rangi jest już zajęta w organizacji (case-sensitive).
+    /// Sprawdza, czy nazwa rangi jest już zajęta w ramach dyscypliny (case-sensitive).
     /// </summary>
-    Task<bool> IsNameTakenAsync(Guid organizationId, string name, Guid? excludeId = null, CancellationToken ct = default);
+    Task<bool> IsNameTakenAsync(Guid disciplineId, string name, Guid? excludeId = null, CancellationToken ct = default);
 }

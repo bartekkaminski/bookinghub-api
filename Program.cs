@@ -285,6 +285,7 @@ builder.Services.AddScoped<ITrainerSessionRateRepository, TrainerSessionRateRepo
 builder.Services.AddScoped<IParentChildRelationRepository, ParentChildRelationRepository>();
 builder.Services.AddScoped<IUserDeviceTokenRepository, UserDeviceTokenRepository>();
 builder.Services.AddScoped<IRankRepository, RankRepository>();
+builder.Services.AddScoped<IDisciplineRepository, DisciplineRepository>();
 
 // ── Services ───────────────────────────────────────────────────────────────────
 
@@ -313,6 +314,7 @@ builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<ICostService, CostService>();
 builder.Services.AddScoped<IRankService, RankService>();
+builder.Services.AddScoped<IDisciplineService, DisciplineService>();
 
 // BackgroundService — Singleton, przetwarza OutboxEvent i wysyła przez SignalR/FCM
 builder.Services.AddHostedService<OutboxProcessor>();

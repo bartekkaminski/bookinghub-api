@@ -57,7 +57,10 @@ public sealed class ServiceExceptionHandler : IExceptionHandler
             ServiceErrorCode.MemberAlreadyEnrolled  or
             ServiceErrorCode.TeamAlreadyEnrolled    or
             ServiceErrorCode.CancellationRequestAlreadyPending    or
-            ServiceErrorCode.ActiveRateAlreadyExists
+            ServiceErrorCode.ActiveRateAlreadyExists or
+            ServiceErrorCode.RankNameTaken          or
+            ServiceErrorCode.DisciplineNameTaken    or
+            ServiceErrorCode.DisciplineHasRanks
                 => StatusCodes.Status409Conflict,
 
             ServiceErrorCode.KindeApiError
@@ -138,7 +141,10 @@ public sealed class ServiceExceptionHandler : IExceptionHandler
         ServiceErrorCode.MemberAlreadyEnrolled  or
         ServiceErrorCode.TeamAlreadyEnrolled    or
         ServiceErrorCode.CancellationRequestAlreadyPending   or
-        ServiceErrorCode.ActiveRateAlreadyExists
+        ServiceErrorCode.ActiveRateAlreadyExists or
+        ServiceErrorCode.RankNameTaken          or
+        ServiceErrorCode.DisciplineNameTaken    or
+        ServiceErrorCode.DisciplineHasRanks
             => "Konflikt — zasób już istnieje lub operacja narusza ograniczenie.",
         ServiceErrorCode.NotMember               or
         ServiceErrorCode.CannotRemoveLastAdmin   or

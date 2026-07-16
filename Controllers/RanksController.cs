@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace BookingHub.Api.Controllers;
 
 /// <summary>
-/// Zarządzanie rangami organizacyjnymi.
+/// Zarządzanie rangami w ramach dyscypliny organizacyjnej.
 ///
-/// Trasa bazowa: /api/organizations/{organizationId}/ranks
+/// Trasa bazowa: /api/organizations/{organizationId}/disciplines/{disciplineId}/ranks
 ///
 /// Odczyt:
 ///   GET /                   — lista rang z liczbą członków (wszyscy członkowie)
@@ -21,9 +21,9 @@ namespace BookingHub.Api.Controllers;
 /// Zarządzanie (tylko Admin):
 ///   POST /                  — utwórz rangę
 ///   PUT  /{rankId}          — zaktualizuj rangę
-///   DELETE /{rankId}        — usuń rangę (soft delete, RankId u członków → null)
+///   DELETE /{rankId}        — usuń rangę (soft delete, usuwa przypisania u członków)
 /// </summary>
-[Route("api/organizations/{organizationId:guid}/ranks")]
+[Route("api/organizations/{organizationId:guid}/disciplines/{disciplineId:guid}/ranks")]
 [RequireOrgMembership]
 public sealed class RanksController : BookingHubControllerBase
 {
@@ -35,14 +35,15 @@ public sealed class RanksController : BookingHubControllerBase
     }
 
     /// <summary>
-    /// Pobiera wszystkie rangi organizacji z liczbą przypisanych członków.
+    /// Pobiera wszystkie rangi dyscypliny z liczbą przypisanych członków.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<RankSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<RankSummaryResponse>>> GetAll(
-        Guid organizationId, CancellationToken ct)
+        Guid organizationId, Guid disciplineId, CancellationToken ct)
     {
-        var result = await _rankService.GetAllAsync(organizationId, ct);
+        var result = await _rankService.GetAllAsync(organizationId, disciplineId, ct);
         return Ok(result);
     }
 
@@ -53,9 +54,9 @@ public sealed class RanksController : BookingHubControllerBase
     [ProducesResponseType(typeof(RankDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RankDetailResponse>> GetById(
-        Guid organizationId, Guid rankId, CancellationToken ct)
+        Guid organizationId, Guid disciplineId, Guid rankId, CancellationToken ct)
     {
-        var result = await _rankService.GetByIdAsync(rankId, ct);
+        var result = await _rankService.GetByIdAsync(organizationId, disciplineId, rankId, ct);
         return Ok(result);
     }
 
@@ -67,30 +68,32 @@ public sealed class RanksController : BookingHubControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PagedResult<MemberSummaryResponse>>> GetMembers(
         Guid organizationId,
+        Guid disciplineId,
         Guid rankId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _rankService.GetMembersAsync(rankId, page, pageSize, ct);
+        var result = await _rankService.GetMembersAsync(organizationId, disciplineId, rankId, page, pageSize, ct);
         return Ok(result);
     }
 
     /// <summary>
-    /// Tworzy nową rangę w organizacji. Tylko Admin.
+    /// Tworzy nową rangę w dyscyplinie. Tylko Admin.
     /// </summary>
     [HttpPost]
     [RequireOrgMembership(OrgRoles.Admin)]
     [ProducesResponseType(typeof(RankDetailResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<RankDetailResponse>> Create(
-        Guid organizationId, [FromBody] CreateRankRequest request, CancellationToken ct)
+        Guid organizationId, Guid disciplineId, [FromBody] CreateRankRequest request, CancellationToken ct)
     {
-        var created = await _rankService.CreateAsync(organizationId, request, ct);
+        var created = await _rankService.CreateAsync(organizationId, disciplineId, request, ct);
         return CreatedAtAction(nameof(GetById),
-            new { organizationId, rankId = created.Id }, created);
+            new { organizationId, disciplineId, rankId = created.Id }, created);
     }
 
     /// <summary>
@@ -104,10 +107,10 @@ public sealed class RanksController : BookingHubControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<RankDetailResponse>> Update(
-        Guid organizationId, Guid rankId,
+        Guid organizationId, Guid disciplineId, Guid rankId,
         [FromBody] UpdateRankRequest request, CancellationToken ct)
     {
-        var updated = await _rankService.UpdateAsync(rankId, request, ct);
+        var updated = await _rankService.UpdateAsync(organizationId, disciplineId, rankId, request, ct);
         return Ok(updated);
     }
 
@@ -120,9 +123,9 @@ public sealed class RanksController : BookingHubControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(
-        Guid organizationId, Guid rankId, CancellationToken ct)
+        Guid organizationId, Guid disciplineId, Guid rankId, CancellationToken ct)
     {
-        await _rankService.DeleteAsync(rankId, ct);
+        await _rankService.DeleteAsync(organizationId, disciplineId, rankId, ct);
         return NoContent();
     }
 }
