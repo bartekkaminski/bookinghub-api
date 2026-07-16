@@ -39,6 +39,11 @@ public interface IGroupRepository : IBaseRepository<Group>
     Task<IReadOnlyList<Group>> GetByTeamAsync(Guid teamId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Pobiera wszystkie grupy, do których przypisany jest dany trener.
+    /// </summary>
+    Task<IReadOnlyList<Group>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Sprawdza, czy nazwa grupy jest już zajęta w organizacji.
     /// </summary>
     Task<bool> IsNameTakenInOrgAsync(Guid organizationId, string name, Guid? excludeGroupId = null, CancellationToken cancellationToken = default);
@@ -52,6 +57,11 @@ public interface IGroupRepository : IBaseRepository<Group>
     /// Sprawdza, czy zespół jest już przypisany do grupy.
     /// </summary>
     Task<bool> IsTeamInGroupAsync(Guid groupId, Guid teamId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sprawdza, czy trener jest już przypisany do grupy.
+    /// </summary>
+    Task<bool> IsTrainerAssignedAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sprawdza, czy nazwa grupy jest już zajęta w organizacji.
@@ -83,6 +93,16 @@ public interface IGroupRepository : IBaseRepository<Group>
     /// Usuwa zespół z grupy.
     /// </summary>
     Task RemoveTeamAsync(Guid groupId, Guid teamId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Przypisuje stałego trenera do grupy.
+    /// </summary>
+    Task AddTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Usuwa przypisanie trenera do grupy.
+    /// </summary>
+    Task RemoveTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Zwraca liczbę grup w organizacji.

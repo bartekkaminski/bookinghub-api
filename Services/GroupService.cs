@@ -61,6 +61,13 @@ public sealed class GroupService : IGroupService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<GroupSummaryResponse>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken ct = default)
+    {
+        var groups = await _groups.GetByTrainerAsync(trainerMemberId, ct);
+        return groups.Where(g => g.IsActive).Select(g => g.ToSummary()).ToList();
+    }
+
+    /// <inheritdoc/>
     public async Task<GroupDetailResponse> CreateAsync(Guid organizationId, CreateGroupRequest request, CancellationToken ct = default)
     {
         var orgExists = await _organizations.ExistsAsync(organizationId, ct);
@@ -171,6 +178,42 @@ public sealed class GroupService : IGroupService
                 "Zespół nie jest przypisany do tej grupy.");
 
         await _groups.RemoveTeamAsync(groupId, teamId, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task AssignTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken ct = default)
+    {
+        var group = await _groups.GetByIdAsync(groupId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Grupa {groupId} nie istnieje.");
+
+        var trainer = await _members.GetWithDetailsAsync(trainerMemberId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Trener {trainerMemberId} nie istnieje.");
+
+        if (!trainer.Roles.Any(r => r.Role == MemberRole.Trainer))
+            throw new ServiceException(ServiceErrorCode.NotATrainer,
+                "Wskazana osoba nie ma roli Trenera.");
+
+        if (trainer.OrganizationId != group.OrganizationId)
+            throw new ServiceException(ServiceErrorCode.ValidationError,
+                "Trener należy do innej organizacji niż grupa.");
+
+        var alreadyAssigned = await _groups.IsTrainerAssignedAsync(groupId, trainerMemberId, ct);
+        if (alreadyAssigned)
+            throw new ServiceException(ServiceErrorCode.TrainerAlreadyAssignedToGroup,
+                "Trener jest już przypisany do tej grupy.");
+
+        await _groups.AddTrainerAsync(groupId, trainerMemberId, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task RemoveTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken ct = default)
+    {
+        var assigned = await _groups.IsTrainerAssignedAsync(groupId, trainerMemberId, ct);
+        if (!assigned)
+            throw new ServiceException(ServiceErrorCode.NotFound,
+                "Trener nie jest przypisany do tej grupy.");
+
+        await _groups.RemoveTrainerAsync(groupId, trainerMemberId, ct);
     }
 
     // ── Stawki grupy ──────────────────────────────────────────────────────────

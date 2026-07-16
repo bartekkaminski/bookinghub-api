@@ -61,6 +61,9 @@ public class OrganizationMember : BaseEntity
     /// <summary>Składy które ten członek stale prowadzi (gdy ma rolę Trainer)</summary>
     public ICollection<TeamTrainer> AssignedTeams { get; set; } = [];
 
+    /// <summary>Grupy które ten członek stale prowadzi (gdy ma rolę Trainer)</summary>
+    public ICollection<GroupTrainer> AssignedGroups { get; set; } = [];
+
     /// <summary>Sloty dostępności (używane przez trenerów i uczestników)</summary>
     public ICollection<MemberAvailability> Availability { get; set; } = [];
 

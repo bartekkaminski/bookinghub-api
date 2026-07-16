@@ -18,6 +18,9 @@ public interface IGroupService
     /// <summary>Pobiera wszystkie aktywne grupy organizacji (do selectów).</summary>
     Task<IReadOnlyList<GroupSummaryResponse>> GetByOrganizationAsync(Guid organizationId, CancellationToken ct = default);
 
+    /// <summary>Pobiera grupy, do których dany członek jest przypisany jako trener.</summary>
+    Task<IReadOnlyList<GroupSummaryResponse>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken ct = default);
+
     /// <summary>Tworzy nową grupę zajęciową.</summary>
     Task<GroupDetailResponse> CreateAsync(Guid organizationId, CreateGroupRequest request, CancellationToken ct = default);
 
@@ -38,6 +41,12 @@ public interface IGroupService
 
     /// <summary>Usuwa zespół z grupy.</summary>
     Task RemoveTeamAsync(Guid groupId, Guid teamId, CancellationToken ct = default);
+
+    /// <summary>Przypisuje stałego trenera do grupy.</summary>
+    Task AssignTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken ct = default);
+
+    /// <summary>Usuwa przypisanie trenera do grupy.</summary>
+    Task RemoveTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken ct = default);
 
     // ── Stawki grupy ──────────────────────────────────────────────────────────
 

@@ -32,6 +32,11 @@ public sealed class GroupRepository : BaseRepository<Group>, IGroupRepository
             .Include(g => g.Teams)
                 .ThenInclude(tg => tg.Team)
                     .ThenInclude(t => t.Members)
+                        .ThenInclude(tm => tm.OrganizationMember)
+                            .ThenInclude(m => m.Person)
+            .Include(g => g.Trainers)
+                .ThenInclude(gt => gt.Trainer)
+                    .ThenInclude(tr => tr.Person)
             .Include(g => g.CostRates)
             .FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
 
@@ -51,6 +56,9 @@ public sealed class GroupRepository : BaseRepository<Group>, IGroupRepository
 
         if (filter.IsActive.HasValue)
             query = query.Where(g => g.IsActive == filter.IsActive.Value);
+
+        if (filter.TrainerMemberId.HasValue)
+            query = query.Where(g => g.Trainers.Any(gt => gt.TrainerMemberId == filter.TrainerMemberId.Value));
 
         query = ApplySorting(query, filter);
 
@@ -95,6 +103,16 @@ public sealed class GroupRepository : BaseRepository<Group>, IGroupRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<Group>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken cancellationToken = default)
+        => await _context.Set<GroupTrainer>()
+            .AsNoTracking()
+            .Where(gt => gt.TrainerMemberId == trainerMemberId)
+            .Include(gt => gt.Group)
+            .Select(gt => gt.Group)
+            .OrderBy(g => g.Name)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<bool> IsNameTakenInOrgAsync(Guid organizationId, string name, Guid? excludeGroupId = null, CancellationToken cancellationToken = default)
         => await _dbSet.AnyAsync(
             g => g.OrganizationId == organizationId
@@ -111,6 +129,11 @@ public sealed class GroupRepository : BaseRepository<Group>, IGroupRepository
     public async Task<bool> IsTeamInGroupAsync(Guid groupId, Guid teamId, CancellationToken cancellationToken = default)
         => await _context.Set<TeamGroup>()
             .AnyAsync(tg => tg.GroupId == groupId && tg.TeamId == teamId, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<bool> IsTrainerAssignedAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default)
+        => await _context.Set<GroupTrainer>()
+            .AnyAsync(gt => gt.GroupId == groupId && gt.TrainerMemberId == trainerMemberId, cancellationToken);
 
     /// <inheritdoc/>
     public Task<bool> IsNameTakenAsync(Guid organizationId, string name, Guid? excludeGroupId = null, CancellationToken cancellationToken = default)
@@ -158,6 +181,26 @@ public sealed class GroupRepository : BaseRepository<Group>, IGroupRepository
         if (tg is not null)
         {
             _context.Set<TeamGroup>().Remove(tg);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task AddTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default)
+    {
+        var gt = new GroupTrainer { GroupId = groupId, TrainerMemberId = trainerMemberId };
+        await _context.Set<GroupTrainer>().AddAsync(gt, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task RemoveTrainerAsync(Guid groupId, Guid trainerMemberId, CancellationToken cancellationToken = default)
+    {
+        var gt = await _context.Set<GroupTrainer>()
+            .FirstOrDefaultAsync(x => x.GroupId == groupId && x.TrainerMemberId == trainerMemberId, cancellationToken);
+        if (gt is not null)
+        {
+            _context.Set<GroupTrainer>().Remove(gt);
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

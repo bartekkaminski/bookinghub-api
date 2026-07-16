@@ -49,6 +49,7 @@ public sealed class ServiceExceptionHandler : IExceptionHandler
             ServiceErrorCode.GroupNameTaken         or
             ServiceErrorCode.MemberAlreadyInGroup   or
             ServiceErrorCode.TeamAlreadyInGroup     or
+            ServiceErrorCode.TrainerAlreadyAssignedToGroup        or
             ServiceErrorCode.MemberAlreadyInTeam    or
             ServiceErrorCode.TrainerAlreadyAssignedToTeam         or
             ServiceErrorCode.TrainerAlreadyAssignedToParticipant  or
@@ -133,6 +134,7 @@ public sealed class ServiceExceptionHandler : IExceptionHandler
         ServiceErrorCode.GroupNameTaken         or
         ServiceErrorCode.MemberAlreadyInGroup   or
         ServiceErrorCode.TeamAlreadyInGroup     or
+        ServiceErrorCode.TrainerAlreadyAssignedToGroup       or
         ServiceErrorCode.MemberAlreadyInTeam    or
         ServiceErrorCode.TrainerAlreadyAssignedToTeam        or
         ServiceErrorCode.TrainerAlreadyAssignedToParticipant or

@@ -29,6 +29,12 @@ public sealed class GroupDetailResponse
     public bool IsActive { get; set; }
     public IReadOnlyList<GroupMemberInfo> Members { get; set; } = [];
     public IReadOnlyList<GroupTeamInfo> Teams { get; set; } = [];
+    /// <summary>
+    /// Deduplikowana lista wszystkich unikalnych osób w grupie — uczestnicy bezpośredni
+    /// oraz osoby wchodzące w skład przypisanych zespołów, scaleni po OrganizationMemberId.
+    /// </summary>
+    public IReadOnlyList<GroupEffectiveMemberInfo> EffectiveMembers { get; set; } = [];
+    public IReadOnlyList<GroupTrainerInfo> Trainers { get; set; } = [];
     public IReadOnlyList<GroupCostRateInfo> CostRates { get; set; } = [];
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -45,12 +51,33 @@ public sealed class GroupMemberInfo
     public DateTime JoinedAt { get; set; }
 }
 
+/// <summary>Unikalna osoba w grupie wraz z informacją, z jakiego źródła (uczestnik/zespoły) pochodzi.</summary>
+public sealed class GroupEffectiveMemberInfo
+{
+    public Guid MemberId { get; set; }
+    public Guid PersonId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? PhotoUrl { get; set; }
+    public string? Color { get; set; }
+    /// <summary>True, jeśli osoba jest dodana do grupy bezpośrednio (GroupMember).</summary>
+    public bool IsDirectParticipant { get; set; }
+    /// <summary>Nazwy zespołów przypisanych do grupy, w których ta osoba jest członkiem.</summary>
+    public IReadOnlyList<string> TeamNames { get; set; } = [];
+}
+
 public sealed class GroupTeamInfo
 {
     public Guid TeamId { get; set; }
     public string? TeamName { get; set; }
     public int? Priority { get; set; }
     public int MembersCount { get; set; }
+}
+
+public sealed class GroupTrainerInfo
+{
+    public Guid TrainerMemberId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Color { get; set; }
 }
 
 public sealed class GroupCostRateInfo
@@ -107,4 +134,11 @@ public sealed class AddTeamToGroupRequest
 {
     [Required]
     public Guid TeamId { get; set; }
+}
+
+/// <summary>Żądanie przypisania stałego trenera do grupy.</summary>
+public sealed class AssignTrainerToGroupRequest
+{
+    [Required]
+    public Guid TrainerMemberId { get; set; }
 }

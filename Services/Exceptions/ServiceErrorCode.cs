@@ -63,6 +63,8 @@ public enum ServiceErrorCode
     MemberAlreadyInGroup,
     /// <summary>Zespół jest już przypisany do tej grupy.</summary>
     TeamAlreadyInGroup,
+    /// <summary>Trener jest już przypisany do tej grupy.</summary>
+    TrainerAlreadyAssignedToGroup,
 
     // ── Team ──────────────────────────────────────────────────────────────────
     /// <summary>Uczestnik jest już w tym zespole.</summary>

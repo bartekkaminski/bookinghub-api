@@ -21,6 +21,7 @@ public class Group : BaseEntity
     public Person? CreatedBy { get; set; }
     public ICollection<GroupMember> Members { get; set; } = [];
     public ICollection<TeamGroup> Teams { get; set; } = [];
+    public ICollection<GroupTrainer> Trainers { get; set; } = [];
     public ICollection<EventSeries> EventSeriesDefaults { get; set; } = [];
     public ICollection<Event> Events { get; set; } = [];
     public ICollection<GroupCostRate> CostRates { get; set; } = [];

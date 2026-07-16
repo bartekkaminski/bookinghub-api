@@ -113,6 +113,9 @@ public sealed class GroupFilterParams : FilterParams
 
     /// <summary>Filtr po aktywności grupy: true = aktywne, false = nieaktywne, null = wszystkie.</summary>
     public bool? IsActive { get; set; }
+
+    /// <summary>Filtr po trenerze — zwraca tylko grupy, w których dany członek jest przypisany jako trener.</summary>
+    public Guid? TrainerMemberId { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

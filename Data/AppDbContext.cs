@@ -144,6 +144,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MemberAvailability> MemberAvailabilities => Set<MemberAvailability>();
     public DbSet<ParticipantTrainer> ParticipantTrainers => Set<ParticipantTrainer>();
     public DbSet<TeamTrainer> TeamTrainers => Set<TeamTrainer>();
+    public DbSet<GroupTrainer> GroupTrainers => Set<GroupTrainer>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<EventSeries> EventSeries => Set<EventSeries>();
     public DbSet<Event> Events => Set<Event>();
@@ -182,6 +183,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<MemberAvailability>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ParticipantTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<TeamTrainer>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<GroupTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Location>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventSeries>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Event>().HasQueryFilter(e => !e.IsDeleted);
@@ -754,6 +756,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(tt => tt.CreatedBy)
              .WithMany()
              .HasForeignKey(tt => tt.CreatedByPersonId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── GroupTrainer ──────────────────────────────────────────────────────
+        modelBuilder.Entity<GroupTrainer>(e =>
+        {
+            // Ten sam trener nie może być przypisany dwa razy do tej samej grupy
+            e.HasIndex(gt => new { gt.GroupId, gt.TrainerMemberId })
+             .IsUnique()
+             .HasFilter("\"IsDeleted\" = false");
+
+            e.HasIndex(gt => gt.GroupId);
+            e.HasIndex(gt => gt.TrainerMemberId);
+
+            e.HasOne(gt => gt.Group)
+             .WithMany(g => g.Trainers)
+             .HasForeignKey(gt => gt.GroupId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(gt => gt.Trainer)
+             .WithMany(m => m.AssignedGroups)
+             .HasForeignKey(gt => gt.TrainerMemberId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(gt => gt.CreatedBy)
+             .WithMany()
+             .HasForeignKey(gt => gt.CreatedByPersonId)
              .IsRequired(false)
              .OnDelete(DeleteBehavior.SetNull);
         });

@@ -29,6 +29,8 @@ namespace BookingHub.Api.Controllers;
 ///   DELETE /{groupId}/members/{organizationMemberId} — usuń uczestnika (Admin, Manager)
 ///   POST   /{groupId}/teams                        — dodaj zespół (Admin, Manager)
 ///   DELETE /{groupId}/teams/{teamId}               — usuń zespół (Admin, Manager)
+///   POST   /{groupId}/trainers                     — przypisz trenera (Admin, Manager)
+///   DELETE /{groupId}/trainers/{trainerId}         — usuń trenera (Admin, Manager)
 ///
 /// Stawki:
 ///   GET    /{groupId}/cost-rates                   — historia stawek (Admin, Manager)
@@ -49,6 +51,8 @@ public sealed class GroupsController : BookingHubControllerBase
 
     /// <summary>
     /// Stronicowana lista grup w organizacji.
+    /// Trenerzy widzą wyłącznie grupy, do których są przypisani — filtr jest wymuszany
+    /// po stronie serwera niezależnie od parametrów żądania.
     /// </summary>
     [HttpGet]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -56,12 +60,20 @@ public sealed class GroupsController : BookingHubControllerBase
     public async Task<ActionResult<PagedResult<GroupSummaryResponse>>> GetPaged(
         Guid organizationId, [FromQuery] GroupFilterParams filter, CancellationToken ct)
     {
+        var isAdminOrManager = await CurrentUser.IsAdminOrManagerAsync(organizationId, ct);
+        if (!isAdminOrManager)
+        {
+            var myMember = await CurrentUser.GetMemberAsync(organizationId, ct);
+            filter.TrainerMemberId = myMember?.Id;
+        }
+
         var result = await _groups.GetPagedAsync(organizationId, filter, ct);
         return Ok(result);
     }
 
     /// <summary>
     /// Pełna lista aktywnych grup (do selectów w formularzach).
+    /// Trenerzy widzą wyłącznie własne grupy — filtr wymuszany po stronie serwera.
     /// </summary>
     [HttpGet("all")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -69,6 +81,15 @@ public sealed class GroupsController : BookingHubControllerBase
     public async Task<ActionResult<IReadOnlyList<GroupSummaryResponse>>> GetAll(
         Guid organizationId, CancellationToken ct)
     {
+        var isAdminOrManager = await CurrentUser.IsAdminOrManagerAsync(organizationId, ct);
+        if (!isAdminOrManager)
+        {
+            var myMember = await CurrentUser.GetMemberAsync(organizationId, ct);
+            if (myMember is null) return Ok(Array.Empty<GroupSummaryResponse>());
+            var trainerGroups = await _groups.GetByTrainerAsync(myMember.Id, ct);
+            return Ok(trainerGroups);
+        }
+
         var result = await _groups.GetByOrganizationAsync(organizationId, ct);
         return Ok(result);
     }
@@ -206,6 +227,39 @@ public sealed class GroupsController : BookingHubControllerBase
         Guid organizationId, Guid groupId, Guid teamId, CancellationToken ct)
     {
         await _groups.RemoveTeamAsync(groupId, teamId, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Przypisuje stałego trenera do grupy. Admin lub Manager.
+    /// </summary>
+    [HttpPost("{groupId:guid}/trainers")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AssignTrainer(
+        Guid organizationId, Guid groupId,
+        [FromBody] AssignTrainerToGroupRequest request, CancellationToken ct)
+    {
+        await _groups.AssignTrainerAsync(groupId, request.TrainerMemberId, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Usuwa przypisanie trenera do grupy. Admin lub Manager.
+    /// </summary>
+    [HttpDelete("{groupId:guid}/trainers/{trainerId:guid}")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveTrainer(
+        Guid organizationId, Guid groupId, Guid trainerId, CancellationToken ct)
+    {
+        await _groups.RemoveTrainerAsync(groupId, trainerId, ct);
         return NoContent();
     }
 

@@ -44,6 +44,13 @@ internal static class GroupMappings
             Priority     = tg.Team?.Priority,
             MembersCount = tg.Team?.Members.Count ?? 0,
         }).ToList(),
+        EffectiveMembers = group.BuildEffectiveMembers(),
+        Trainers = group.Trainers.Select(gt => new GroupTrainerInfo
+        {
+            TrainerMemberId = gt.TrainerMemberId,
+            DisplayName     = gt.Trainer?.ResolveDisplayName() ?? string.Empty,
+            Color           = gt.Trainer?.Color,
+        }).ToList(),
         CostRates = group.CostRates.OrderByDescending(r => r.ValidFrom).Select(r => new GroupCostRateInfo
         {
             Id          = r.Id,
@@ -55,6 +62,57 @@ internal static class GroupMappings
         CreatedAt = group.CreatedAt,
         UpdatedAt = group.UpdatedAt,
     };
+
+    /// <summary>
+    /// Scala bezpośrednich uczestników grupy z osobami wchodzącymi w skład przypisanych zespołów,
+    /// deduplikując po OrganizationMemberId. Osoba obecna w obu ścieżkach dostaje oba oznaczenia źródła.
+    /// </summary>
+    private static IReadOnlyList<GroupEffectiveMemberInfo> BuildEffectiveMembers(this Group group)
+    {
+        var effective = new Dictionary<Guid, GroupEffectiveMemberInfo>();
+
+        foreach (var gm in group.Members)
+        {
+            effective[gm.OrganizationMemberId] = new GroupEffectiveMemberInfo
+            {
+                MemberId            = gm.OrganizationMemberId,
+                PersonId            = gm.OrganizationMember?.PersonId ?? Guid.Empty,
+                DisplayName         = gm.OrganizationMember?.ResolveDisplayName() ?? string.Empty,
+                PhotoUrl            = gm.OrganizationMember?.PhotoUrl ?? gm.OrganizationMember?.Person?.PhotoUrl,
+                Color               = gm.OrganizationMember?.Color,
+                IsDirectParticipant = true,
+                TeamNames           = [],
+            };
+        }
+
+        foreach (var tg in group.Teams)
+        {
+            if (tg.Team is null) continue;
+            var teamName = tg.Team.Name ?? string.Empty;
+
+            foreach (var tm in tg.Team.Members)
+            {
+                if (effective.TryGetValue(tm.OrganizationMemberId, out var existing))
+                {
+                    existing.TeamNames = [.. existing.TeamNames, teamName];
+                    continue;
+                }
+
+                effective[tm.OrganizationMemberId] = new GroupEffectiveMemberInfo
+                {
+                    MemberId            = tm.OrganizationMemberId,
+                    PersonId            = tm.OrganizationMember?.PersonId ?? Guid.Empty,
+                    DisplayName         = tm.OrganizationMember?.ResolveDisplayName() ?? string.Empty,
+                    PhotoUrl            = tm.OrganizationMember?.PhotoUrl ?? tm.OrganizationMember?.Person?.PhotoUrl,
+                    Color               = tm.OrganizationMember?.Color,
+                    IsDirectParticipant = false,
+                    TeamNames           = [teamName],
+                };
+            }
+        }
+
+        return effective.Values.OrderBy(m => m.DisplayName).ToList();
+    }
 
     public static Group ToEntity(this CreateGroupRequest dto, Guid organizationId) => new()
     {
