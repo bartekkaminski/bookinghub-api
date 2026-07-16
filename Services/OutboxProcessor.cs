@@ -159,7 +159,7 @@ public sealed class OutboxProcessor : BackgroundService
                         ["eventType"]      = HubEvents.NewMessage,
                         ["messageId"]      = payload.MessageId.ToString(),
                         ["organizationId"] = payload.OrganizationId.ToString(),
-                        ["actionUrl"]      = $"/app/org/{payload.OrganizationId}/messages/{payload.MessageId}",
+                        ["actionUrl"]      = $"/org/{payload.OrganizationId}/messages/{payload.MessageId}",
                         ["subject"]        = payload.Subject,
                     },
                     ct);
@@ -185,7 +185,7 @@ public sealed class OutboxProcessor : BackgroundService
                         ["messageId"]      = payload.MessageId.ToString(),
                         ["conversationId"] = payload.ConversationId.ToString(),
                         ["organizationId"] = payload.OrganizationId.ToString(),
-                        ["actionUrl"]      = $"/app/org/{payload.OrganizationId}/messages/{payload.ConversationId}",
+                        ["actionUrl"]      = $"/org/{payload.OrganizationId}/messages/{payload.ConversationId}",
                         ["subject"]        = payload.Subject,
                     },
                     ct);

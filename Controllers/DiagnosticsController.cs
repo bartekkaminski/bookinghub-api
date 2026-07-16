@@ -10,10 +10,11 @@ namespace BookingHub.Api.Controllers;
 
 /// <summary>
 /// Endpoint diagnostyczny — sprawdza stan kluczowych komponentów aplikacji.
-/// Dostępny tylko dla uwierzytelnionych użytkowników.
+/// Tylko Development (poza nim 404). Bez wymogu JWT — wygodne lokalne curl/Scalar.
 /// </summary>
 [ApiController]
 [Route("api/diagnostics")]
+[DevelopmentOnly]
 [AllowAnonymous]
 public sealed class DiagnosticsController : ControllerBase
 {
