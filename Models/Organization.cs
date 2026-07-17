@@ -16,9 +16,7 @@ public class Organization : BaseEntity
     public ICollection<Group> Groups { get; set; } = [];
     public ICollection<Team> Teams { get; set; } = [];
     public ICollection<Location> Locations { get; set; } = [];
-    public ICollection<EventSeries> EventSeries { get; set; } = [];
     public ICollection<Event> Events { get; set; } = [];
     public ICollection<Message> Messages { get; set; } = [];
     public ICollection<Discipline> Disciplines { get; set; } = [];
-
 }

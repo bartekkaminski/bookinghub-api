@@ -25,7 +25,27 @@ public interface IEventService
     Task<EventDetailResponse> GetByIdAsync(Guid eventId, CancellationToken ct = default);
 
     /// <summary>Tworzy nowe jednorazowe zajęcia.</summary>
-    Task<EventDetailResponse> CreateAsync(Guid organizationId, CreateEventRequest request, CancellationToken ct = default);
+    /// <param name="creatorMemberId">Członek org tworzący zajęcia — jeśli ma rolę Trainer, zostanie auto-przypisany.</param>
+    Task<EventDetailResponse> CreateAsync(
+        Guid organizationId, CreateEventRequest request, Guid? creatorMemberId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Tworzy cykl zajęć: wiele Event z tym samym SeriesGroupId
+    /// dla dni tygodnia w podanym zakresie dat.
+    /// </summary>
+    /// <param name="creatorMemberId">Członek org tworzący cykl — jeśli ma rolę Trainer, zostanie auto-przypisany do każdego wystąpienia.</param>
+    Task<CreateRecurringEventsResponse> CreateRecurringAsync(
+        Guid organizationId, CreateRecurringEventsRequest request, Guid? creatorMemberId = null, CancellationToken ct = default);
+
+    /// <summary>Pobiera wszystkie zajęcia należące do danego cyklu (SeriesGroupId).</summary>
+    Task<IReadOnlyList<EventSummaryResponse>> GetBySeriesGroupAsync(
+        Guid organizationId, Guid seriesGroupId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Odwołuje wszystkie przyszłe zaplanowane zajęcia w cyklu (StartTime &gt;= now, Status = Scheduled).
+    /// </summary>
+    Task<CancelFutureInSeriesGroupResponse> CancelFutureInSeriesGroupAsync(
+        Guid organizationId, Guid seriesGroupId, CancelFutureInSeriesGroupRequest request, CancellationToken ct = default);
 
     /// <summary>Aktualizuje dane zajęć (dozwolone tylko gdy status = Scheduled).</summary>
     Task<EventDetailResponse> UpdateAsync(Guid eventId, UpdateEventRequest request, CancellationToken ct = default);

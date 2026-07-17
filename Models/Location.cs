@@ -11,6 +11,5 @@ public class Location : BaseEntity
 
     public Organization Organization { get; set; } = null!;
     public Person? CreatedBy { get; set; }
-    public ICollection<EventSeries> EventSeries { get; set; } = [];
     public ICollection<Event> Events { get; set; } = [];
 }

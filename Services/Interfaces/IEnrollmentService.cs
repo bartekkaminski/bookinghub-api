@@ -24,9 +24,21 @@ public interface IEnrollmentService
     Task<EnrollmentDetailResponse> EnrollMemberAsync(Guid eventId, Guid organizationMemberId, CancellationToken ct = default);
 
     /// <summary>
+    /// Zapisuje wielu uczestników na nowo utworzone zajęcia.
+    /// Pomija już zapisanych; waliduje organizację i aktywność.
+    /// </summary>
+    Task EnrollMembersOnCreateAsync(Guid eventId, IReadOnlyList<Guid> memberIds, CancellationToken ct = default);
+
+    /// <summary>
     /// Zapisuje cały zespół na zajęcia (tworzy EventTeamEnrollment + EventEnrollment dla każdego członka zespołu).
     /// </summary>
     Task<TeamEnrollmentSummaryResponse> EnrollTeamAsync(Guid eventId, Guid teamId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Zapisuje wiele zespołów na nowo utworzone zajęcia.
+    /// Pomija już zapisane zespoły.
+    /// </summary>
+    Task EnrollTeamsOnCreateAsync(Guid eventId, IReadOnlyList<Guid> teamIds, CancellationToken ct = default);
 
     /// <summary>
     /// Wypisuje uczestnika z zajęć (zmiana statusu na Cancelled).

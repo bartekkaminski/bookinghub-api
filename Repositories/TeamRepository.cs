@@ -80,6 +80,7 @@ public sealed class TeamRepository : BaseRepository<Team>, ITeamRepository
         var query = _dbSet.AsNoTracking().Where(t => t.OrganizationId == organizationId);
         if (onlyActive) query = query.Where(t => t.IsActive);
         return await query
+            .Include(t => t.Members)
             .OrderBy(t => t.Priority)
             .ThenBy(t => t.Name)
             .ToListAsync(cancellationToken);
@@ -112,11 +113,10 @@ public sealed class TeamRepository : BaseRepository<Team>, ITeamRepository
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Team>> GetByTrainerAsync(Guid trainerMemberId, CancellationToken cancellationToken = default)
-        => await _context.Set<TeamTrainer>()
+        => await _dbSet
             .AsNoTracking()
-            .Where(tt => tt.TrainerMemberId == trainerMemberId)
-            .Include(tt => tt.Team)
-            .Select(tt => tt.Team)
+            .Where(t => t.Trainers.Any(tt => tt.TrainerMemberId == trainerMemberId))
+            .Include(t => t.Members)
             .OrderBy(t => t.Priority)
             .ThenBy(t => t.Name)
             .ToListAsync(cancellationToken);

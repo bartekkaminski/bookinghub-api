@@ -19,7 +19,6 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
             .AsNoTracking()
             .Include(e => e.Location)
             .Include(e => e.Group)
-            .Include(e => e.EventSeries)
             .Include(e => e.Trainers)
                 .ThenInclude(et => et.OrganizationMember)
                     .ThenInclude(m => m.Person)
@@ -81,7 +80,6 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
             .AsNoTracking()
             .Include(e => e.Group)
             .Include(e => e.Location)
-            .Include(e => e.EventSeries)
             .Include(e => e.Trainers)
                 .ThenInclude(et => et.OrganizationMember)
                     .ThenInclude(m => m.Person)
@@ -128,10 +126,12 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<Event>> GetBySeriesAsync(Guid eventSeriesId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Event>> GetBySeriesGroupAsync(Guid seriesGroupId, CancellationToken cancellationToken = default)
         => await _dbSet
             .AsNoTracking()
-            .Where(e => e.EventSeriesId == eventSeriesId)
+            .Include(e => e.Location)
+            .Include(e => e.Group)
+            .Where(e => e.SeriesGroupId == seriesGroupId)
             .OrderBy(e => e.StartTime)
             .ToListAsync(cancellationToken);
 
@@ -209,7 +209,6 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
         => await _dbSet
             .AsNoTracking()
             .Include(e => e.Group)
-            .Include(e => e.EventSeries)
             .Include(e => e.Enrollments)
             .Include(e => e.TeamEnrollments)
                 .ThenInclude(te => te.Team)
@@ -229,8 +228,8 @@ public sealed class EventRepository : BaseRepository<Event>, IEventRepository
         if (filter.OrganizationId.HasValue)
             query = query.Where(e => e.OrganizationId == filter.OrganizationId.Value);
 
-        if (filter.EventSeriesId.HasValue)
-            query = query.Where(e => e.EventSeriesId == filter.EventSeriesId.Value);
+        if (filter.SeriesGroupId.HasValue)
+            query = query.Where(e => e.SeriesGroupId == filter.SeriesGroupId.Value);
 
         if (filter.GroupId.HasValue)
             query = query.Where(e => e.GroupId == filter.GroupId.Value);

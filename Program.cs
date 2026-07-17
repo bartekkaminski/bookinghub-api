@@ -273,7 +273,6 @@ builder.Services.AddScoped<IOrganizationMemberRepository, OrganizationMemberRepo
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<ITeamRepository, TeamRepository>();
 builder.Services.AddScoped<ILocationRepository, LocationRepository>();
-builder.Services.AddScoped<IEventSeriesRepository, EventSeriesRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IEventEnrollmentRepository, EventEnrollmentRepository>();
 builder.Services.AddScoped<IEventTeamEnrollmentRepository, EventTeamEnrollmentRepository>();
@@ -306,7 +305,6 @@ builder.Services.AddScoped<IOrganizationMemberService, OrganizationMemberService
 builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<ILocationService, LocationService>();
-builder.Services.AddScoped<IEventSeriesService, EventSeriesService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<ICancellationRequestService, CancellationRequestService>();

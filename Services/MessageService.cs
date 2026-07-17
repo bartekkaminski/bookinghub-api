@@ -144,7 +144,8 @@ public sealed class MessageService : IMessageService
     public async Task SendSystemMessageAsync(Guid organizationId, string subject, string body,
         IReadOnlyList<Guid> recipientMemberIds, Guid? relatedEventId = null, CancellationToken ct = default)
     {
-        if (!recipientMemberIds.Any())
+        var recipientIds = recipientMemberIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (recipientIds.Count == 0)
         {
             _logger.LogWarning("SendSystemMessage: Brak odbiorców dla '{Subject}'.", subject);
             return;
@@ -161,23 +162,36 @@ public sealed class MessageService : IMessageService
 
         var message = new Message
         {
+            // Jawne Guid — potrzebne do payloadu outboxa przed SaveChangesAsync
+            Id             = Guid.NewGuid(),
             OrganizationId = organizationId,
             SenderMemberId = systemSender.Id,
-            Subject        = subject,
-            Body           = body,
+            Subject        = subject.Trim(),
+            Body           = body.Trim(),
             SentAt         = DateTime.UtcNow,
             IsAutomatic    = true,
             RelatedEventId = relatedEventId,
-            Recipients     = recipientMemberIds.Distinct().Select(memberId => new MessageRecipient
+            Recipients     = recipientIds.Select(memberId => new MessageRecipient
             {
                 RecipientMemberId = memberId,
                 IsRead            = false,
             }).ToList(),
         };
 
+        // Enqueue PRZED AddAsync — SignalR + FCM jak przy zwykłych wiadomościach
+        _outbox.Enqueue(organizationId, HubEvents.NewMessage, new NewMessagePayload(
+            MessageId:          message.Id,
+            OrganizationId:     organizationId,
+            SenderMemberId:     systemSender.Id,
+            RecipientMemberIds: recipientIds,
+            Subject:            message.Subject,
+            SenderName:         "System",
+            Preview:            BuildPreview(message.Body)
+        ));
+
         await _messages.AddAsync(message, ct);
-        _logger.LogInformation("Wysłano systemową wiadomość '{Subject}' do {Count} odbiorców.",
-            subject, recipientMemberIds.Count);
+        _logger.LogInformation("Wysłano systemową wiadomość '{Subject}' do {Count} odbiorców (inbox + outbox).",
+            subject, recipientIds.Count);
     }
 
     /// <inheritdoc/>

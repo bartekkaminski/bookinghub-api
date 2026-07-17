@@ -41,9 +41,9 @@ public interface IEventRepository : IBaseRepository<Event>
     Task<IReadOnlyList<Event>> GetCalendarForMemberAsync(Guid organizationMemberId, DateTime from, DateTime to, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Pobiera wszystkie zajęcia należące do danej serii.
+    /// Pobiera wszystkie zajęcia należące do danego cyklu (SeriesGroupId).
     /// </summary>
-    Task<IReadOnlyList<Event>> GetBySeriesAsync(Guid eventSeriesId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Event>> GetBySeriesGroupAsync(Guid seriesGroupId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Pobiera nadchodzące zajęcia organizacji (StartTime &gt;= now), ograniczone do podanej liczby.
@@ -83,7 +83,7 @@ public interface IEventRepository : IBaseRepository<Event>
     /// <summary>
     /// Pobiera zajęcia przypisane do danej lokalizacji w przedziale dat.
     /// Zawiera szczegóły potrzebne do widoku harmonogramu sali:
-    /// grupę, serię (dla koloru), zapisy indywidualne i zespołowe z liczebnościami.
+    /// grupę, zapisy indywidualne i zespołowe z liczebnościami.
     /// </summary>
     Task<IReadOnlyList<Event>> GetByLocationAndRangeAsync(
         Guid locationId, DateTime from, DateTime to, CancellationToken cancellationToken = default);

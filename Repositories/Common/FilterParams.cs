@@ -159,32 +159,6 @@ public sealed class LocationFilterParams : FilterParams
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EventSeries
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// <summary>Parametry filtrowania listy serii cyklicznych zajęć.</summary>
-public sealed class EventSeriesFilterParams : FilterParams
-{
-    /// <summary>Filtr po organizacji.</summary>
-    public Guid? OrganizationId { get; set; }
-
-    /// <summary>Filtr po fragmencie tytułu serii (case-insensitive).</summary>
-    public string? Search { get; set; }
-
-    /// <summary>Filtr po domyślnej grupie przypisanej do serii.</summary>
-    public Guid? DefaultGroupId { get; set; }
-
-    /// <summary>Filtr po domyślnej lokalizacji serii.</summary>
-    public Guid? DefaultLocationId { get; set; }
-
-    /// <summary>Filtr po domyślnym typie zajęć serii.</summary>
-    public EventType? DefaultEventType { get; set; }
-
-    /// <summary>Filtr po aktywności serii.</summary>
-    public bool? IsActive { get; set; }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Event
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -194,8 +168,8 @@ public sealed class EventFilterParams : FilterParams
     /// <summary>Filtr po organizacji.</summary>
     public Guid? OrganizationId { get; set; }
 
-    /// <summary>Filtr po serii — zwraca tylko zajęcia należące do danej serii.</summary>
-    public Guid? EventSeriesId { get; set; }
+    /// <summary>Filtr po cyklu — zwraca tylko zajęcia należące do danej grupy cyklu.</summary>
+    public Guid? SeriesGroupId { get; set; }
 
     /// <summary>Filtr po grupie przypisanej do zajęć.</summary>
     public Guid? GroupId { get; set; }

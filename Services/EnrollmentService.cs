@@ -18,6 +18,7 @@ public sealed class EnrollmentService : IEnrollmentService
     private readonly IEventRepository _events;
     private readonly IOrganizationMemberRepository _members;
     private readonly ITeamRepository _teams;
+    private readonly IMessageService _messages;
     private readonly ILogger<EnrollmentService> _logger;
 
     public EnrollmentService(
@@ -26,6 +27,7 @@ public sealed class EnrollmentService : IEnrollmentService
         IEventRepository events,
         IOrganizationMemberRepository members,
         ITeamRepository teams,
+        IMessageService messages,
         ILogger<EnrollmentService> logger)
     {
         _enrollments     = enrollments;
@@ -33,6 +35,7 @@ public sealed class EnrollmentService : IEnrollmentService
         _events          = events;
         _members         = members;
         _teams           = teams;
+        _messages        = messages;
         _logger          = logger;
     }
 
@@ -97,8 +100,41 @@ public sealed class EnrollmentService : IEnrollmentService
             Status               = EventEnrollmentStatus.Enrolled,
         };
         var created = await _enrollments.AddAsync(enrollment, ct);
+
+        await NotifyEnrolledAsync(ev, [organizationMemberId], ct);
+
         var details = await _enrollments.GetWithDetailsAsync(created.Id, ct);
         return details!.ToDetail();
+    }
+
+    /// <inheritdoc/>
+    public async Task EnrollMembersOnCreateAsync(Guid eventId, IReadOnlyList<Guid> memberIds, CancellationToken ct = default)
+    {
+        if (memberIds.Count == 0) return;
+
+        var ev = await _events.GetByIdAsync(eventId, ct)
+            ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Zajęcia {eventId} nie istnieją.");
+
+        var newlyEnrolled = new List<Guid>();
+        foreach (var memberId in memberIds.Distinct())
+        {
+            if (await _enrollments.IsEnrolledAsync(eventId, memberId, ct))
+                continue;
+
+            var member = await _members.GetByIdAsync(memberId, ct);
+            if (member is null || member.OrganizationId != ev.OrganizationId || !member.IsActive)
+                continue;
+
+            await _enrollments.AddAsync(new EventEnrollment
+            {
+                EventId              = eventId,
+                OrganizationMemberId = memberId,
+                Status               = EventEnrollmentStatus.Enrolled,
+            }, ct);
+            newlyEnrolled.Add(memberId);
+        }
+
+        await NotifyEnrolledAsync(ev, newlyEnrolled, ct);
     }
 
     /// <inheritdoc/>
@@ -138,23 +174,56 @@ public sealed class EnrollmentService : IEnrollmentService
         teamEnrollment = await _teamEnrollments.AddAsync(teamEnrollment, ct);
 
         // Utwórz indywidualne zapisy dla każdego aktywnego członka zespołu
+        var newlyEnrolled = new List<Guid>();
         foreach (var teamMember in team.Members)
         {
-            var alreadyEnrolled = await _enrollments.IsEnrolledAsync(eventId, teamMember.OrganizationMemberId, ct);
+            var memberId = teamMember.OrganizationMemberId;
+            if (teamMember.OrganizationMember is { IsActive: false })
+                continue;
+
+            var alreadyEnrolled = await _enrollments.IsEnrolledAsync(eventId, memberId, ct);
             if (!alreadyEnrolled)
             {
                 var enrollment = new EventEnrollment
                 {
                     EventId              = eventId,
-                    OrganizationMemberId = teamMember.OrganizationMemberId,
+                    OrganizationMemberId = memberId,
                     Status               = EventEnrollmentStatus.Enrolled,
                 };
                 await _enrollments.AddAsync(enrollment, ct);
+                newlyEnrolled.Add(memberId);
             }
         }
 
+        await NotifyEnrolledAsync(ev, newlyEnrolled, ct);
+
         var details = await _teamEnrollments.GetWithDetailsAsync(teamEnrollment.Id, ct);
         return details!.ToSummary();
+    }
+
+    /// <inheritdoc/>
+    public async Task EnrollTeamsOnCreateAsync(Guid eventId, IReadOnlyList<Guid> teamIds, CancellationToken ct = default)
+    {
+        if (teamIds.Count == 0) return;
+
+        foreach (var teamId in teamIds.Distinct())
+        {
+            if (await _teamEnrollments.IsEnrolledAsync(eventId, teamId, ct))
+                continue;
+
+            try
+            {
+                await EnrollTeamAsync(eventId, teamId, ct);
+            }
+            catch (ServiceException ex) when (
+                ex.ErrorCode is ServiceErrorCode.TeamAlreadyEnrolled
+                    or ServiceErrorCode.NotFound
+                    or ServiceErrorCode.Conflict
+                    or ServiceErrorCode.ValidationError)
+            {
+                _logger.LogDebug(ex, "Pominięto zapis zespołu {TeamId} na zajęcia {EventId}.", teamId, eventId);
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -168,6 +237,10 @@ public sealed class EnrollmentService : IEnrollmentService
 
         enrollment.Status = EventEnrollmentStatus.Cancelled;
         await _enrollments.UpdateAsync(enrollment, ct);
+
+        var ev = await _events.GetByIdAsync(enrollment.EventId, ct);
+        if (ev is not null)
+            await NotifyUnenrolledAsync(ev, [enrollment.OrganizationMemberId], ct);
     }
 
     /// <inheritdoc/>
@@ -182,7 +255,9 @@ public sealed class EnrollmentService : IEnrollmentService
         teamEnrollment.Status = EventEnrollmentStatus.Cancelled;
         await _teamEnrollments.UpdateAsync(teamEnrollment, ct);
 
-        // Anuluj indywidualne zapisy członków tego zespołu (jeśli nie zapisani z innego źródła)
+        var unenrolledMemberIds = new List<Guid>();
+
+        // Anuluj indywidualne zapisy członków tego zespołu
         if (teamEnrollment.Team is not null)
         {
             foreach (var teamMember in teamEnrollment.Team.Members)
@@ -193,9 +268,15 @@ public sealed class EnrollmentService : IEnrollmentService
                 {
                     memberEnrollment.Status = EventEnrollmentStatus.Cancelled;
                     await _enrollments.UpdateAsync(memberEnrollment, ct);
+                    unenrolledMemberIds.Add(teamMember.OrganizationMemberId);
                 }
             }
         }
+
+        var ev = teamEnrollment.Event
+            ?? await _events.GetByIdAsync(teamEnrollment.EventId, ct);
+        if (ev is not null)
+            await NotifyUnenrolledAsync(ev, unenrolledMemberIds, ct);
     }
 
     /// <inheritdoc/>
@@ -299,6 +380,10 @@ public sealed class EnrollmentService : IEnrollmentService
 
         _logger.LogInformation("Wniosek o zapis {EnrollmentId} zatwierdzony. Notatka: {Note}", enrollmentId, reviewNote);
 
+        var ev = await _events.GetByIdAsync(enrollment.EventId, ct);
+        if (ev is not null)
+            await NotifyEnrolledAsync(ev, [enrollment.OrganizationMemberId], ct);
+
         var details = await _enrollments.GetWithDetailsAsync(enrollmentId, ct);
         return details!.ToDetail();
     }
@@ -327,5 +412,47 @@ public sealed class EnrollmentService : IEnrollmentService
     {
         var pending = await _enrollments.GetPendingRequestsForOrganizationAsync(organizationId, ct);
         return pending.Select(e => e.ToRequestSummary()).ToList();
+    }
+
+    // ── Powiadomienia ────────────────────────────────────────────────────────
+
+    private async Task NotifyEnrolledAsync(Event ev, IReadOnlyList<Guid> memberIds, CancellationToken ct)
+    {
+        if (memberIds.Count == 0) return;
+
+        try
+        {
+            await _messages.SendSystemMessageAsync(
+                ev.OrganizationId,
+                $"Zapis na zajęcia: {ev.Title}",
+                $"Zostałeś/aś zapisany/a na zajęcia \"{ev.Title}\" zaplanowane na {ev.StartTime:dd.MM.yyyy HH:mm}.",
+                memberIds,
+                ev.Id,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Nie udało się wysłać powiadomienia o zapisie na zajęcia {EventId}.", ev.Id);
+        }
+    }
+
+    private async Task NotifyUnenrolledAsync(Event ev, IReadOnlyList<Guid> memberIds, CancellationToken ct)
+    {
+        if (memberIds.Count == 0) return;
+
+        try
+        {
+            await _messages.SendSystemMessageAsync(
+                ev.OrganizationId,
+                $"Wypisanie z zajęć: {ev.Title}",
+                $"Zostałeś/aś wypisany/a z zajęć \"{ev.Title}\" zaplanowanych na {ev.StartTime:dd.MM.yyyy HH:mm}.",
+                memberIds,
+                ev.Id,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Nie udało się wysłać powiadomienia o wypisaniu z zajęć {EventId}.", ev.Id);
+        }
     }
 }

@@ -8,12 +8,11 @@ internal static class EventMappings
     private const string DefaultColor = "#9CA3AF";
 
     /// <summary>
-    /// Wyznacza kolor zdarzenia: własny → serii → grupy → domyślny szary.
+    /// Wyznacza kolor zdarzenia: własny → grupy → domyślny szary.
     /// </summary>
     public static string ResolveColor(this Event ev) =>
-        !string.IsNullOrWhiteSpace(ev.Color)                    ? ev.Color :
-        !string.IsNullOrWhiteSpace(ev.EventSeries?.DefaultColor) ? ev.EventSeries.DefaultColor :
-        !string.IsNullOrWhiteSpace(ev.Group?.Color)              ? ev.Group.Color :
+        !string.IsNullOrWhiteSpace(ev.Color)       ? ev.Color :
+        !string.IsNullOrWhiteSpace(ev.Group?.Color) ? ev.Group.Color :
         DefaultColor;
 
     public static EventSummaryResponse ToSummary(this Event ev) => new()
@@ -30,7 +29,7 @@ internal static class EventMappings
         LocationName   = ev.Location?.Name,
         GroupId        = ev.GroupId,
         GroupName      = ev.Group?.Name,
-        EventSeriesId  = ev.EventSeriesId,
+        SeriesGroupId  = ev.SeriesGroupId,
         EnrolledCount  = ev.Enrollments.Count(e => e.Status == EventEnrollmentStatus.Enrolled),
         Trainers       = ev.Trainers.Select(t => new EventTrainerInfo
         {
@@ -54,14 +53,14 @@ internal static class EventMappings
         GroupName     = ev.Group?.Name,
         TrainerNames  = ev.Trainers.Select(t => t.OrganizationMember?.ResolveDisplayName() ?? string.Empty).ToList(),
         EnrolledCount = ev.Enrollments.Count(e => e.Status == EventEnrollmentStatus.Enrolled),
-        EventSeriesId = ev.EventSeriesId,
+        SeriesGroupId = ev.SeriesGroupId,
     };
 
     public static EventDetailResponse ToDetail(this Event ev) => new()
     {
         Id              = ev.Id,
         OrganizationId  = ev.OrganizationId,
-        EventSeriesId   = ev.EventSeriesId,
+        SeriesGroupId   = ev.SeriesGroupId,
         Title           = ev.Title,
         Description     = ev.Description,
         StartTime       = ev.StartTime,
@@ -85,12 +84,12 @@ internal static class EventMappings
         }).ToList(),
         Enrollments = ev.Enrollments.Select(e => new EventEnrollmentInfo
         {
-            EnrollmentId            = e.Id,
-            MemberId                = e.OrganizationMemberId,
-            DisplayName             = e.OrganizationMember?.ResolveDisplayName() ?? string.Empty,
-            PhotoUrl                = e.OrganizationMember?.PhotoUrl ?? e.OrganizationMember?.Person?.PhotoUrl,
-            Status                  = e.Status.ToString(),
-            HasPendingCancellation  = e.CancellationRequests.Any(cr => cr.Status == CancellationStatus.Pending),
+            EnrollmentId           = e.Id,
+            MemberId               = e.OrganizationMemberId,
+            DisplayName            = e.OrganizationMember?.ResolveDisplayName() ?? string.Empty,
+            PhotoUrl               = e.OrganizationMember?.PhotoUrl ?? e.OrganizationMember?.Person?.PhotoUrl,
+            Status                 = e.Status.ToString(),
+            HasPendingCancellation = e.CancellationRequests.Any(cr => cr.Status == CancellationStatus.Pending),
         }).ToList(),
         TeamEnrollments = ev.TeamEnrollments.Select(te => new EventTeamEnrollmentInfo
         {
@@ -113,7 +112,6 @@ internal static class EventMappings
         EndTime        = dto.EndTime.ToUniversalTime(),
         LocationId     = dto.LocationId,
         GroupId        = dto.GroupId,
-        EventSeriesId  = dto.EventSeriesId,
         EventType      = dto.EventType,
         Color          = dto.Color?.Trim(),
         UnitCost       = dto.UnitCost,

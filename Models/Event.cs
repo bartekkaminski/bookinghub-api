@@ -4,22 +4,26 @@ public class Event : BaseEntity
 {
     public Guid OrganizationId { get; set; }
 
-    /// <summary>Null = wydarzenie jednorazowe. FK = część serii cyklicznej.</summary>
-    public Guid? EventSeriesId { get; set; }
+    /// <summary>
+    /// Null = wydarzenie jednorazowe.
+    /// Ten sam GUID w wielu Event = zajęcia należące do jednego cyklu cyklicznego
+    /// (bez osobnej tabeli szablonu — tylko identyfikator grupujący).
+    /// </summary>
+    public Guid? SeriesGroupId { get; set; }
 
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
 
-    /// <summary>Nadpisuje DefaultLocationId z EventSeries. Null = brak przypisanej lokalizacji.</summary>
+    /// <summary>Null = brak przypisanej lokalizacji.</summary>
     public Guid? LocationId { get; set; }
 
-    /// <summary>Nadpisuje DefaultGroupId z EventSeries. Null = wydarzenie bez grupy (otwarte).</summary>
+    /// <summary>Null = wydarzenie bez grupy (otwarte).</summary>
     public Guid? GroupId { get; set; }
 
     /// <summary>
-    /// Typ zajęć. Nadpisuje EventSeries.DefaultEventType.
+    /// Typ zajęć.
     /// Wpływa na logikę kosztów: IndividualSession = stawka trenera ÷ liczba uczestników,
     /// Camp = UnitCost per uczestnik, GroupTraining = stawka miesięczna grupy.
     /// </summary>
@@ -37,15 +41,14 @@ public class Event : BaseEntity
     public string? Currency { get; set; }
 
     /// <summary>
-    /// Kolor zajęć w kalendarzu. Null = dziedziczony z EventSeries.DefaultColor
-    /// lub z Group.Color (w tej kolejności).
+    /// Kolor zajęć w kalendarzu. Null = dziedziczony z Group.Color
+    /// lub domyślny szary.
     /// </summary>
     public string? Color { get; set; }
 
     public Guid? CreatedByPersonId { get; set; }
 
     public Organization Organization { get; set; } = null!;
-    public EventSeries? EventSeries { get; set; }
     public Location? Location { get; set; }
     public Group? Group { get; set; }
     public Person? CreatedBy { get; set; }

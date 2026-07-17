@@ -18,13 +18,16 @@ namespace BookingHub.Api.Controllers;
 ///   GET /calendar      — widok kalendarza (wszyscy członkowie)
 ///   GET /my-calendar   — kalendarz zalogowanego uczestnika (Participant)
 ///   GET /{eventId}     — szczegóły (wszyscy członkowie)
+///   GET /by-series-group/{seriesGroupId} — zajęcia w cyklu
 ///
 /// Zarządzanie (Admin, Manager, Trainer):
-///   POST /             — utwórz zajęcia (Admin, Manager, Trainer)
-///   PUT  /{eventId}    — edytuj (Admin, Manager, Trainer)
-///   POST /{eventId}/cancel   — odwołaj (Admin, Manager, Trainer)
-///   POST /{eventId}/complete — zakończ (Admin, Manager, Trainer)
+///   POST /             — utwórz zajęcia jednorazowe
+///   POST /recurring    — utwórz cykl zajęć (Admin, Manager)
+///   PUT  /{eventId}    — edytuj
+///   POST /{eventId}/cancel   — odwołaj
+///   POST /{eventId}/complete — zakończ
 ///   DELETE /{eventId}  — usuń (Admin, Manager)
+///   POST /by-series-group/{seriesGroupId}/cancel-future — odwołaj przyszłe w cyklu (Admin, Manager)
 ///
 /// Trenerzy:
 ///   POST   /{eventId}/trainers                 — przypisz trenera (Admin, Manager)
@@ -73,7 +76,6 @@ public sealed class EventsController : BookingHubControllerBase
 
     /// <summary>
     /// Kalendarz zalogowanego uczestnika — zajęcia, na które jest zapisany.
-    /// Dostępny dla uczestnika (widzi swój harmonogram).
     /// </summary>
     [HttpGet("my-calendar")]
     [ProducesResponseType(typeof(IReadOnlyList<EventCalendarResponse>), StatusCodes.Status200OK)]
@@ -94,6 +96,19 @@ public sealed class EventsController : BookingHubControllerBase
     }
 
     /// <summary>
+    /// Lista zajęć należących do cyklu (SeriesGroupId).
+    /// </summary>
+    [HttpGet("by-series-group/{seriesGroupId:guid}")]
+    [ProducesResponseType(typeof(IReadOnlyList<EventSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<EventSummaryResponse>>> GetBySeriesGroup(
+        Guid organizationId, Guid seriesGroupId, CancellationToken ct)
+    {
+        var result = await _events.GetBySeriesGroupAsync(organizationId, seriesGroupId, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Szczegóły zajęć: trenerzy, zapisy indywidualne i zespołowe.
     /// </summary>
     [HttpGet("{eventId:guid}")]
@@ -104,15 +119,14 @@ public sealed class EventsController : BookingHubControllerBase
     {
         var evt = await _events.GetByIdAsync(eventId, ct);
         if (evt.OrganizationId != organizationId)
-            throw new Services.Exceptions.ServiceException(Services.Exceptions.ServiceErrorCode.NotFound,
+            throw new ServiceException(ServiceErrorCode.NotFound,
                 $"Zajęcia {eventId} nie istnieją w tej organizacji.");
 
         return Ok(evt);
     }
 
     /// <summary>
-    /// Tworzy nowe zajęcia. Admin, Manager lub Trainer.
-    /// Opcjonalnie przypisuje trenerów w tym samym żądaniu.
+    /// Tworzy nowe jednorazowe zajęcia. Admin, Manager lub Trainer.
     /// </summary>
     [HttpPost]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -123,14 +137,49 @@ public sealed class EventsController : BookingHubControllerBase
     public async Task<ActionResult<EventDetailResponse>> Create(
         Guid organizationId, [FromBody] CreateEventRequest request, CancellationToken ct)
     {
-        var created = await _events.CreateAsync(organizationId, request, ct);
+        var member = await CurrentUser.GetMemberAsync(organizationId, ct);
+        var created = await _events.CreateAsync(organizationId, request, member?.Id, ct);
         return CreatedAtAction(nameof(GetById),
             new { organizationId, eventId = created.Id }, created);
     }
 
     /// <summary>
+    /// Tworzy cykl zajęć (wiele Event z tym samym SeriesGroupId) dla wybranych dni tygodnia
+    /// w podanym zakresie dat. Admin lub Manager.
+    /// </summary>
+    [HttpPost("recurring")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(typeof(CreateRecurringEventsResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CreateRecurringEventsResponse>> CreateRecurring(
+        Guid organizationId, [FromBody] CreateRecurringEventsRequest request, CancellationToken ct)
+    {
+        var member = await CurrentUser.GetMemberAsync(organizationId, ct);
+        var result = await _events.CreateRecurringAsync(organizationId, request, member?.Id, ct);
+        return CreatedAtAction(nameof(GetBySeriesGroup),
+            new { organizationId, seriesGroupId = result.SeriesGroupId }, result);
+    }
+
+    /// <summary>
+    /// Odwołuje wszystkie przyszłe zaplanowane zajęcia w cyklu. Admin lub Manager.
+    /// </summary>
+    [HttpPost("by-series-group/{seriesGroupId:guid}/cancel-future")]
+    [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
+    [ProducesResponseType(typeof(CancelFutureInSeriesGroupResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CancelFutureInSeriesGroupResponse>> CancelFutureInSeriesGroup(
+        Guid organizationId, Guid seriesGroupId,
+        [FromBody] CancelFutureInSeriesGroupRequest request, CancellationToken ct)
+    {
+        var result = await _events.CancelFutureInSeriesGroupAsync(organizationId, seriesGroupId, request, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Aktualizuje dane zajęć. Dozwolone tylko gdy status = Scheduled.
-    /// Admin, Manager lub Trainer.
     /// </summary>
     [HttpPut("{eventId:guid}")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -149,8 +198,6 @@ public sealed class EventsController : BookingHubControllerBase
 
     /// <summary>
     /// Odwołuje zajęcia (status → Cancelled).
-    /// Opcjonalnie wysyła automatyczne powiadomienie do uczestników.
-    /// Admin, Manager lub Trainer.
     /// </summary>
     [HttpPost("{eventId:guid}/cancel")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -169,8 +216,6 @@ public sealed class EventsController : BookingHubControllerBase
 
     /// <summary>
     /// Kończy zajęcia (status → Completed).
-    /// Zmienia wszystkie aktywne zapisy na Attended.
-    /// Admin, Manager lub Trainer.
     /// </summary>
     [HttpPost("{eventId:guid}/complete")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager, OrgRoles.Trainer)]
@@ -187,7 +232,6 @@ public sealed class EventsController : BookingHubControllerBase
 
     /// <summary>
     /// Usuwa zajęcia (soft delete). Tylko gdy status = Scheduled i brak zapisów.
-    /// Admin lub Manager.
     /// </summary>
     [HttpDelete("{eventId:guid}")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
@@ -204,9 +248,6 @@ public sealed class EventsController : BookingHubControllerBase
 
     // ── Trenerzy ─────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Przypisuje trenera do zajęć. Admin lub Manager.
-    /// </summary>
     [HttpPost("{eventId:guid}/trainers")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
     [ProducesResponseType(typeof(EventDetailResponse), StatusCodes.Status200OK)]
@@ -222,9 +263,6 @@ public sealed class EventsController : BookingHubControllerBase
         return Ok(updated);
     }
 
-    /// <summary>
-    /// Usuwa przypisanie trenera z zajęć. Admin lub Manager.
-    /// </summary>
     [HttpDelete("{eventId:guid}/trainers/{trainerId:guid}")]
     [RequireOrgMembership(OrgRoles.Admin, OrgRoles.Manager)]
     [ProducesResponseType(typeof(EventDetailResponse), StatusCodes.Status200OK)]

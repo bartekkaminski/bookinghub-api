@@ -146,7 +146,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TeamTrainer> TeamTrainers => Set<TeamTrainer>();
     public DbSet<GroupTrainer> GroupTrainers => Set<GroupTrainer>();
     public DbSet<Location> Locations => Set<Location>();
-    public DbSet<EventSeries> EventSeries => Set<EventSeries>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventTrainer> EventTrainers => Set<EventTrainer>();
     public DbSet<EventEnrollment> EventEnrollments => Set<EventEnrollment>();
@@ -185,7 +184,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<TeamTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<GroupTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Location>().HasQueryFilter(e => !e.IsDeleted);
-        modelBuilder.Entity<EventSeries>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Event>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventTrainer>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<EventEnrollment>().HasQueryFilter(e => !e.IsDeleted);
@@ -810,43 +808,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ── EventSeries ───────────────────────────────────────────────────────
-        modelBuilder.Entity<EventSeries>(e =>
-        {
-            e.Property(es => es.Title).HasMaxLength(200).IsRequired();
-            e.Property(es => es.Description).HasMaxLength(2000);
-            e.Property(es => es.RecurrenceRule).HasMaxLength(500);
-            e.Property(es => es.DefaultColor).HasMaxLength(7);
-            e.Property(es => es.DefaultEventType).HasConversion<string>().HasMaxLength(50);
-            e.Property(es => es.DefaultEventType).HasDefaultValue(EventType.GroupTraining);
-            e.Property(es => es.IsActive).HasDefaultValue(true);
-
-            e.HasIndex(es => es.OrganizationId);
-
-            e.HasOne(es => es.Organization)
-             .WithMany(o => o.EventSeries)
-             .HasForeignKey(es => es.OrganizationId)
-             .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(es => es.DefaultGroup)
-             .WithMany(g => g.EventSeriesDefaults)
-             .HasForeignKey(es => es.DefaultGroupId)
-             .IsRequired(false)
-             .OnDelete(DeleteBehavior.SetNull);
-
-            e.HasOne(es => es.DefaultLocation)
-             .WithMany(l => l.EventSeries)
-             .HasForeignKey(es => es.DefaultLocationId)
-             .IsRequired(false)
-             .OnDelete(DeleteBehavior.SetNull);
-
-            e.HasOne(es => es.CreatedBy)
-             .WithMany()
-             .HasForeignKey(es => es.CreatedByPersonId)
-             .IsRequired(false)
-             .OnDelete(DeleteBehavior.SetNull);
-        });
-
         // ── Event ─────────────────────────────────────────────────────────────
         modelBuilder.Entity<Event>(e =>
         {
@@ -861,19 +822,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(ev => ev.Currency).HasMaxLength(3).IsRequired(false);
 
             e.HasIndex(ev => ev.OrganizationId);
-            e.HasIndex(ev => ev.EventSeriesId);
+            e.HasIndex(ev => ev.SeriesGroupId);
             e.HasIndex(ev => ev.StartTime);
 
             e.HasOne(ev => ev.Organization)
              .WithMany(o => o.Events)
              .HasForeignKey(ev => ev.OrganizationId)
              .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(ev => ev.EventSeries)
-             .WithMany(es => es.Events)
-             .HasForeignKey(ev => ev.EventSeriesId)
-             .IsRequired(false)
-             .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(ev => ev.Location)
              .WithMany(l => l.Events)
