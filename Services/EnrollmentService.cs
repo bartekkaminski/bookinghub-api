@@ -292,8 +292,23 @@ public sealed class EnrollmentService : IEnrollmentService
         var enrollment = await _enrollments.GetByIdAsync(enrollmentId, ct)
             ?? throw new ServiceException(ServiceErrorCode.NotFound, $"Zapis {enrollmentId} nie istnieje.");
 
+        var previous = enrollment.Status;
         enrollment.Status = status;
         await _enrollments.UpdateAsync(enrollment, ct);
+
+        // Powiadomienie tylko przy zapisany / wypisany — nie przy Obecny / Nieobecny
+        if (previous != status &&
+            status is EventEnrollmentStatus.Enrolled or EventEnrollmentStatus.Cancelled)
+        {
+            var ev = await _events.GetByIdAsync(enrollment.EventId, ct);
+            if (ev is not null)
+            {
+                if (status == EventEnrollmentStatus.Enrolled)
+                    await NotifyEnrolledAsync(ev, [enrollment.OrganizationMemberId], ct);
+                else
+                    await NotifyUnenrolledAsync(ev, [enrollment.OrganizationMemberId], ct);
+            }
+        }
 
         var details = await _enrollments.GetWithDetailsAsync(enrollmentId, ct);
         return details!.ToDetail();
@@ -403,6 +418,10 @@ public sealed class EnrollmentService : IEnrollmentService
 
         _logger.LogInformation("Wniosek o zapis {EnrollmentId} odrzucony. Notatka: {Note}", enrollmentId, reviewNote);
 
+        var ev = await _events.GetByIdAsync(enrollment.EventId, ct);
+        if (ev is not null)
+            await NotifyEnrollmentRequestRejectedAsync(ev, enrollment.OrganizationMemberId, reviewNote, ct);
+
         var details = await _enrollments.GetWithDetailsAsync(enrollmentId, ct);
         return details!.ToDetail();
     }
@@ -453,6 +472,25 @@ public sealed class EnrollmentService : IEnrollmentService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Nie udało się wysłać powiadomienia o wypisaniu z zajęć {EventId}.", ev.Id);
+        }
+    }
+
+    private async Task NotifyEnrollmentRequestRejectedAsync(Event ev, Guid memberId, string? reviewNote, CancellationToken ct)
+    {
+        var note = string.IsNullOrWhiteSpace(reviewNote) ? "" : $"\n\nNotatka: {reviewNote.Trim()}";
+        try
+        {
+            await _messages.SendSystemMessageAsync(
+                ev.OrganizationId,
+                $"Wniosek o zapis odrzucony: {ev.Title}",
+                $"Twój wniosek o zapis na zajęcia \"{ev.Title}\" ({ev.StartTime:dd.MM.yyyy HH:mm}) został odrzucony.{note}",
+                [memberId],
+                ev.Id,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Nie udało się wysłać powiadomienia o odrzuceniu wniosku o zapis {EventId}.", ev.Id);
         }
     }
 }

@@ -15,15 +15,18 @@ public sealed class CancellationRequestService : ICancellationRequestService
 {
     private readonly ICancellationRequestRepository _requests;
     private readonly IEventEnrollmentRepository _enrollments;
+    private readonly IMessageService _messages;
     private readonly ILogger<CancellationRequestService> _logger;
 
     public CancellationRequestService(
         ICancellationRequestRepository requests,
         IEventEnrollmentRepository enrollments,
+        IMessageService messages,
         ILogger<CancellationRequestService> logger)
     {
         _requests    = requests;
         _enrollments = enrollments;
+        _messages    = messages;
         _logger      = logger;
     }
 
@@ -77,11 +80,11 @@ public sealed class CancellationRequestService : ICancellationRequestService
 
         var entity = new CancellationRequest
         {
-            EventEnrollmentId  = enrollmentId,
-            RequestedByMemberId= requestingMemberId,
-            Reason             = request.Reason?.Trim(),
-            RequestedAt        = DateTime.UtcNow,
-            Status             = CancellationStatus.Pending,
+            EventEnrollmentId   = enrollmentId,
+            RequestedByMemberId = requestingMemberId,
+            Reason              = request.Reason?.Trim(),
+            RequestedAt         = DateTime.UtcNow,
+            Status              = CancellationStatus.Pending,
         };
 
         var created = await _requests.AddAsync(entity, ct);
@@ -103,10 +106,10 @@ public sealed class CancellationRequestService : ICancellationRequestService
             throw new ServiceException(ServiceErrorCode.CancellationRequestNotPending,
                 "Wniosek nie jest w stanie Pending — nie można go ponownie rozpatrzyć.");
 
-        cancellation.Status           = request.Decision;
+        cancellation.Status             = request.Decision;
         cancellation.ReviewedByPersonId = reviewerPersonId;
-        cancellation.ReviewedAt       = DateTime.UtcNow;
-        cancellation.ReviewNote       = request.ReviewNote?.Trim();
+        cancellation.ReviewedAt         = DateTime.UtcNow;
+        cancellation.ReviewNote         = request.ReviewNote?.Trim();
 
         await _requests.UpdateAsync(cancellation, ct);
 
@@ -124,6 +127,8 @@ public sealed class CancellationRequestService : ICancellationRequestService
             }
         }
 
+        await NotifyReviewDecisionAsync(cancellation, request.Decision, request.ReviewNote, ct);
+
         var refreshed = await _requests.GetWithDetailsAsync(requestId, ct);
         return refreshed!.ToDetail();
     }
@@ -140,5 +145,46 @@ public sealed class CancellationRequestService : ICancellationRequestService
 
         cancellation.Status = CancellationStatus.Withdrawn;
         await _requests.UpdateAsync(cancellation, ct);
+    }
+
+    private async Task NotifyReviewDecisionAsync(
+        CancellationRequest cancellation,
+        CancellationStatus decision,
+        string? reviewNote,
+        CancellationToken ct)
+    {
+        var ev = cancellation.EventEnrollment?.Event;
+        if (ev is null) return;
+
+        var memberId = cancellation.RequestedByMemberId;
+        if (memberId == Guid.Empty) return;
+
+        var note = string.IsNullOrWhiteSpace(reviewNote) ? "" : $"\n\nNotatka: {reviewNote.Trim()}";
+        var approved = decision == CancellationStatus.Approved;
+
+        var subject = approved
+            ? $"Wniosek o wypisanie zatwierdzony: {ev.Title}"
+            : $"Wniosek o wypisanie odrzucony: {ev.Title}";
+
+        var body = approved
+            ? $"Twój wniosek o wypisanie z zajęć \"{ev.Title}\" ({ev.StartTime:dd.MM.yyyy HH:mm}) został zatwierdzony. Zapis został anulowany.{note}"
+            : $"Twój wniosek o wypisanie z zajęć \"{ev.Title}\" ({ev.StartTime:dd.MM.yyyy HH:mm}) został odrzucony. Pozostajesz zapisany/a na zajęcia.{note}";
+
+        try
+        {
+            await _messages.SendSystemMessageAsync(
+                ev.OrganizationId,
+                subject,
+                body,
+                [memberId],
+                ev.Id,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Nie udało się wysłać powiadomienia o decyzji wniosku {RequestId} ({Decision}).",
+                cancellation.Id, decision);
+        }
     }
 }
