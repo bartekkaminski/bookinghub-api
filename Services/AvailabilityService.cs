@@ -142,7 +142,7 @@ public sealed class AvailabilityService : IAvailabilityService
             .Where(e => e.Status != EventStatus.Cancelled)
             .ToList();
 
-        // ── 3. Per dzień: filtr slotów w pamięci + scalenie z zajęciami ───────
+        // ── 3. Per dzień: wolne sloty + WSZYSTKIE zajęcia (także poza slotami) ─
         var result = new List<MemberScheduleResponse>();
 
         for (var day = from; day <= to; day = day.AddDays(1))
@@ -155,12 +155,10 @@ public sealed class AvailabilityService : IAvailabilityService
                 .OrderBy(s => s.TimeFrom)
                 .ToList();
 
-            if (activeSlots.Count == 0) continue;
-
             var dayStartUtc = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
             var dayEndUtc   = day.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
 
-            // Zajęcia nachodzące na ten dzień (sprawdzenie nakładania zakresów)
+            // Zajęcia nachodzące na ten dzień (zapis uczestnika lub przypisanie trenera)
             var dayBusy = allEvents
                 .Where(e => e.StartTime < dayEndUtc && e.EndTime > dayStartUtc)
                 .Select(e =>
@@ -168,9 +166,7 @@ public sealed class AvailabilityService : IAvailabilityService
                     var bFrom = TimeOnly.FromTimeSpan(e.StartTime.TimeOfDay);
                     var bTo   = TimeOnly.FromTimeSpan(e.EndTime.TimeOfDay);
 
-                    // Zajęcie zaczyna się poprzedniego dnia (UTC) — clamp do 00:00
                     if (e.StartTime.Date < dayStartUtc.Date) bFrom = TimeOnly.MinValue;
-                    // Zajęcie kończy się następnego dnia (UTC) — clamp do 23:59:59
                     if (e.EndTime.Date > dayStartUtc.Date)   bTo   = TimeOnly.MaxValue;
 
                     return new BusyInterval(bFrom, bTo, e);
@@ -178,7 +174,12 @@ public sealed class AvailabilityService : IAvailabilityService
                 .OrderBy(b => b.From)
                 .ToList();
 
+            if (activeSlots.Count == 0 && dayBusy.Count == 0)
+                continue;
+
             var blocks = new List<ScheduleBlock>();
+
+            // Wolne fragmenty slotów dostępności (zajęcia wycinają Available)
             foreach (var slot in activeSlots)
             {
                 var overlapping = dayBusy
@@ -187,6 +188,34 @@ public sealed class AvailabilityService : IAvailabilityService
 
                 blocks.AddRange(MergeSlotWithBusy(slot.Id, slot.TimeFrom, slot.TimeTo, overlapping));
             }
+
+            // Zajęcia ZAWSZE jako Busy — także gdy nie ma slotu dostępności tego dnia
+            // (SlotId = Empty → frontend nie otwiera edycji slotu)
+            foreach (var b in dayBusy)
+            {
+                if (b.To <= b.From) continue;
+                blocks.Add(new ScheduleBlock
+                {
+                    TimeFrom = b.From,
+                    TimeTo   = b.To,
+                    Type     = ScheduleBlockType.Busy,
+                    SlotId   = Guid.Empty,
+                    Event    = new ScheduleEventInfo
+                    {
+                        EventId   = b.Event.Id,
+                        Title     = b.Event.Title,
+                        Color     = b.Event.Color ?? b.Event.Group?.Color,
+                        EventType = b.Event.EventType.ToString(),
+                    },
+                });
+            }
+
+            // Usuń Busy wygenerowane wewnątrz MergeSlotWithBusy (zostają Available + pełne Busy z eventów)
+            blocks = blocks
+                .Where(bl => bl.Type == ScheduleBlockType.Available || bl.SlotId == Guid.Empty)
+                .OrderBy(bl => bl.TimeFrom)
+                .ThenBy(bl => bl.Type)
+                .ToList();
 
             if (blocks.Count > 0)
                 result.Add(new MemberScheduleResponse { Date = day, Blocks = blocks });

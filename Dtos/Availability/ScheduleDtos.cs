@@ -1,9 +1,9 @@
 namespace BookingHub.Api.Dtos.Availability;
 
 /// <summary>
-/// Scalony grafik członka na konkretny dzień — sloty dostępności + zajęcia → bloki Available/Busy.
-/// Obszary poza slotami dostępności (Unavailable) nie trafiają do odpowiedzi.
-/// Frontend renderuje je jako puste tło osi czasu.
+/// Scalony grafik członka na konkretny dzień — wolne sloty dostępności + zajęcia (Busy).
+/// Zajęcia są zawsze widoczne (także poza slotami dostępności).
+/// Obszary bez slotu i bez zajęć nie trafiają do odpowiedzi (puste tło osi czasu).
 /// </summary>
 public sealed class MemberScheduleResponse
 {
@@ -17,8 +17,7 @@ public sealed class ScheduleBlock
     public TimeOnly TimeTo   { get; set; }
     public ScheduleBlockType Type { get; set; }
     /// <summary>
-    /// Id slotu dostępności (MemberAvailability) z którego pochodzi ten blok.
-    /// Dzięki temu frontend może otworzyć edycję właściwego slotu po kliknięciu bloku.
+    /// Id slotu dostępności (MemberAvailability) — Guid.Empty dla zajęć poza slotem.
     /// </summary>
     public Guid SlotId { get; set; }
     /// <summary>Null gdy Type = Available.</summary>
@@ -26,9 +25,8 @@ public sealed class ScheduleBlock
 }
 
 /// <summary>
-/// Available = slot dostępności wolny od zajęć (można zarezerwować).
-/// Busy      = slot dostępności pokryty przez zajęcia.
-/// Unavailable NIE wchodzi do DTO — frontend renderuje je jako puste tło.
+/// Available = wolny slot dostępności (bez nakładających się zajęć).
+/// Busy      = zajęcia (zapis uczestnika lub przypisanie jako trener) — zawsze w grafiku.
 /// </summary>
 public enum ScheduleBlockType { Available, Busy }
 
